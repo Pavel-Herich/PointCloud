@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Test mračna bodov</title>
+<style>
+:root{--bg:#11161c;--panel:#1a2129;--panel2:#212a34;--line:#2c3743;--ink:#e2e8ef;--dim:#93a2b3;--gold:#e8b23a;--ok:#5cc98a;--bad:#ff6b57}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:980px;margin:0 auto;padding:22px 16px 40px}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--dim);margin:0 0 18px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px 16px;margin:0 0 14px}
+h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);margin:0 0 8px}
+p{margin:6px 0}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0}
+button,select,input[type=file]{font:inherit;color:var(--ink)}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:6px 12px;cursor:pointer}
+button:hover{border-color:var(--gold)}
+button.pri{background:var(--gold);color:#1a1300;border-color:var(--gold);font-weight:600}
+button:disabled{opacity:.45;cursor:default}
+select{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:5px 6px}
+pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:10px 12px;margin:8px 0 0;white-space:pre-wrap;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;min-height:2.5em}
+.k{color:var(--dim);font-size:12.5px}
+.warn{color:var(--gold)}
+#st{color:var(--dim);font-size:12.5px;min-height:1.4em}
+</style>
+</head>
+<body>
+<main>
+<h1>Test mračna bodov</h1>
+<p class="sub">Zmeria, čo tento počítač a prehliadač zvládnu pri veľkých mračnách: pamäť, vlákna, úložisko, čítanie PLY a kreslenie bodov na grafickej karte. Súbory sa nikam neposielajú — všetko beží v prehliadači.</p>
+
+<section>
+<h2>1 · Systém a pamäť</h2>
+<p class="k">Pamäť sa skúša po 1 GiB až do zvoleného limitu a hneď sa uvoľní. Ak by karta spadla, po obnovení stránky sa ukáže posledný úspešný krok.</p>
+<div class="row">
+  <label class="k">limit pamäte <select id="cap"><option>8</option><option selected>24</option><option>40</option><option>56</option></select> GiB</label>
+  <button class="pri" id="bSys">Spustiť test systému</button>
+</div>
+<pre id="oSys"></pre>
+</section>
+
+<section>
+<h2>2 · Čítanie PLY</h2>
+<p class="k">Vyber mračno PLY (binárne aj ASCII). Prečíta sa niekoľkokrát s rôznym počtom vlákien; posledný beh si celé mračno nechá v pamäti (súradnice float32 voči lokálnemu počiatku, farba).</p>
+<div class="row"><input type="file" id="fPly" accept=".ply"></div>
+<pre id="oPly"></pre>
+</section>
+
+<section>
+<h2>3 · Kreslenie bodov (grafická karta)</h2>
+<p class="k">Nakreslí 10, 25, 50, 100 a 200 mil. náhodných bodov a zmeria snímky za sekundu. Zastaví sa, keď klesnú pod 5 alebo dôjde pamäť karty.</p>
+<div class="row"><button class="pri" id="bGpu">Spustiť test kreslenia</button></div>
+<canvas id="cv" width="1280" height="720" style="width:100%;max-width:640px;display:block;margin-top:8px;background:#000;border:1px solid var(--line)"></canvas>
+<pre id="oGpu"></pre>
+</section>
+
+<section>
+<h2>Výsledok</h2>
+<div class="row"><button id="bCopy">Kopírovať výsledok</button><span id="st"></span></div>
+<pre id="oAll"></pre>
+</section>
+</main>
+
+<script>
+"use strict";
+const $=(id)=>document.getElementById(id);
+const G=2**30, RES={};
+const f1=(v,n=1)=>(+v).toFixed(n).replace(".",",");
+const put=(id,t)=>{ $(id).textContent=t; all(); };
+const say=(t)=>{ $("st").textContent=t; };
+function all(){ $("oAll").textContent=[["Systém a pamäť","oSys"],["Čítanie PLY","oPly"],["Kreslenie bodov","oGpu"]]
+  .filter(([,id])=>$(id).textContent.trim()).map(([h,id])=>"== "+h+" ==\n"+$(id).textContent.trim()).join("\n\n"); }
+$("bCopy").addEventListener("click",async()=>{ try{ await navigator.clipboard.writeText($("oAll").textContent); say("skopírované"); }
+  catch(e){ const r=document.createRange(); r.selectNodeContents($("oAll")); const s=getSelection(); s.removeAllRanges(); s.addRange(r); say("označené — Ctrl+C"); } });
+
+/* ---------- izolácia (SharedArrayBuffer) cez service worker — na GitHub Pages ----------
+   GitHub Pages nevie poslať hlavičky COOP/COEP; doplní ich coi-sw.js a stránka sa raz obnoví. */
+(async()=>{
+  if(window.crossOriginIsolated||!("serviceWorker" in navigator)||location.protocol==="file:") return;
+  try{
+    const reg=await navigator.serviceWorker.register("coi-sw.js");
+    if(navigator.serviceWorker.controller){ return; }                 // už riadi, izolácia nevyšla — neobnovovať dookola
+    if(sessionStorage.getItem("coiReload")) return;
+    const go=()=>{ sessionStorage.setItem("coiReload","1"); location.reload(); };
+    if(reg.active) go(); else (reg.installing||reg.waiting).addEventListener("statechange",(e)=>{ if(e.target.state==="activated") go(); });
+  }catch(e){ RES.swErr=String(e).slice(0,100); }
+})();
+{ const last=localStorage.getItem("memLast"); if(last) $("oSys").textContent=`Predošlý test pamäte skončil pri ${last} GiB (karta pravdepodobne spadla — to je limit tohto prehliadača).`; }
+
+/* ---------- 1 · systém, pamäť, úložisko, GPU ---------- */
+const WORKER_OPFS=`onmessage=async(e)=>{ const MB=e.data, out={};
+  try{ const d=await navigator.storage.getDirectory(), fh=await d.getFileHandle("mracno_test.bin",{create:true}), ah=await fh.createSyncAccessHandle();
+    const blk=new Uint8Array(64*2**20); for(let i=0;i<blk.length;i+=4096) blk[i]=i&255;
+    let t=performance.now(); for(let o=0;o<MB*2**20;o+=blk.length) ah.write(blk,{at:o}); ah.flush(); out.wMBs=MB/((performance.now()-t)/1000);
+    t=performance.now(); for(let o=0;o<MB*2**20;o+=blk.length) ah.read(blk,{at:o}); out.rMBs=MB/((performance.now()-t)/1000);
+    ah.close(); await d.removeEntry("mracno_test.bin"); out.ok=true; }
+  catch(err){ out.err=String(err).slice(0,120); }
+  postMessage(out); };`;
+function workerFrom(src){ return new Worker(URL.createObjectURL(new Blob([src],{type:"text/javascript"}))); }
+async function memTest(cap){
+  const out={single:0,total:0};
+  for(const g of [1,2,4,8,16,32]){ if(g>cap) break; try{ let b=new ArrayBuffer(g*G); out.single=g; b=null; }catch(e){ break; } }
+  const keep=[], t0=performance.now();
+  try{ for(let i=0;i<cap;i++){ say(`pamäť: ${i+1} GiB…`); localStorage.setItem("memLast",String(i+1));
+      const b=new ArrayBuffer(G); new Uint8Array(b).fill(1); keep.push(b); out.total=i+1; await new Promise(r=>setTimeout(r,0)); } }
+  catch(e){ out.err=String(e).slice(0,90); }
+  localStorage.removeItem("memLast");
+  out.s=(performance.now()-t0)/1000; keep.length=0; return out;
+}
+function glInfo(){
+  const gl=document.createElement("canvas").getContext("webgl2"); if(!gl) return "WebGL2 nie je k dispozícii";
+  const ex=gl.getExtension("WEBGL_debug_renderer_info");
+  return `${ex?gl.getParameter(ex.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER)} · max textúra ${gl.getParameter(gl.MAX_TEXTURE_SIZE)}`;
+}
+async function gpuInfo(){
+  if(!navigator.gpu) return "nie je k dispozícii";
+  try{ const a=await navigator.gpu.requestAdapter(); if(!a) return "bez adaptéra";
+    const i=a.info||{}; return `${[i.vendor,i.architecture,i.description].filter(Boolean).join(" ")||"áno"} · max buffer ${f1(a.limits.maxBufferSize/G,2)} GiB · max storage ${f1(a.limits.maxStorageBufferBindingSize/G,2)} GiB`; }
+  catch(e){ return "chyba: "+String(e).slice(0,80); }
+}
+$("bSys").addEventListener("click",async()=>{
+  $("bSys").disabled=true; const cap=+$("cap").value, L=[];
+  L.push(`adresa: ${location.protocol==="file:"?"súbor z disku (file://)":location.origin} · bezpečný kontext ${isSecureContext?"áno":"nie"} · izolácia (SharedArrayBuffer) ${crossOriginIsolated?"áno":"nie"}${RES.swErr?" · SW chyba "+RES.swErr:""}`);
+  L.push(`prehliadač: ${navigator.userAgent.replace(/^Mozilla\/5\.0 /,"")}`);
+  L.push(`logické procesory: ${navigator.hardwareConcurrency} · deviceMemory ≥ ${navigator.deviceMemory||"?"} GB (prehliadač udáva najviac 8)`);
+  put("oSys",L.join("\n")+"\n…");
+  const m=await memTest(cap);
+  L.push(`pamäť: najväčší jeden blok ${m.single} GiB · spolu naraz ${m.total} GiB z limitu ${cap} GiB (zaplnené, ${f1(m.s)} s)${m.err?" · zastavil: "+m.err:""}`);
+  if(window.crossOriginIsolated){ let s=0; for(const g of [1,2,4,8,16]){ try{ new SharedArrayBuffer(g*G); s=g; }catch(e){ break; } } L.push(`zdieľaná pamäť: najväčší blok ${s} GiB`); }
+  put("oSys",L.join("\n")+"\n…");
+  try{ const e=await navigator.storage.estimate(); L.push(`úložisko prehliadača: kvóta ${f1(e.quota/G)} GiB, použité ${f1(e.usage/2**20)} MiB`); }catch(e){ L.push("úložisko prehliadača: nedostupné"); }
+  say("úložisko OPFS: zápis a čítanie 2 GiB…");
+  const o=await new Promise((res)=>{ try{ const w=workerFrom(WORKER_OPFS); w.onmessage=(e)=>{ res(e.data); w.terminate(); }; w.onerror=(e)=>res({err:e.message}); w.postMessage(2048); }catch(err){ res({err:String(err)}); } });
+  L.push(o.ok?`OPFS (pracovné súbory v prehliadači): zápis ${Math.round(o.wMBs)} MB/s · čítanie ${Math.round(o.rMBs)} MB/s`:`OPFS: nedostupné — ${o.err}`);
+  L.push(`WebGL2: ${glInfo()}`);
+  L.push(`WebGPU: ${await gpuInfo()}`);
+  put("oSys",L.join("\n")); say(""); $("bSys").disabled=false;
+});
+
+/* ---------- 2 · PLY ---------- */
+const TY={char:["Int8",1],int8:["Int8",1],uchar:["Uint8",1],uint8:["Uint8",1],short:["Int16",2],int16:["Int16",2],ushort:["Uint16",2],uint16:["Uint16",2],
+  int:["Int32",4],int32:["Int32",4],uint:["Uint32",4],uint32:["Uint32",4],float:["Float32",4],float32:["Float32",4],double:["Float64",8],float64:["Float64",8]};
+async function plyHeader(file){
+  const b=new Uint8Array(await file.slice(0,Math.min(file.size,1<<20)).arrayBuffer()), t=new TextDecoder("latin1").decode(b);
+  const m=/end_header\r?\n/.exec(t); if(!m||!/^ply\r?\n/.test(t)) throw new Error("nie je PLY");
+  const H={off:m.index+m[0].length,fmt:"",els:[]}; let cur=null;
+  for(const ln of t.slice(0,m.index).split(/\r?\n/)){ const w=ln.trim().split(/\s+/);
+    if(w[0]==="format") H.fmt=w[1];
+    else if(w[0]==="element"){ cur={name:w[1],n:+w[2],props:[]}; H.els.push(cur); }
+    else if(w[0]==="property"&&cur){ if(w[1]==="list"){ cur.list=true; cur.props.push({name:w[4],t:"list"}); } else cur.props.push({name:w[2],t:w[1]}); } }
+  const vi=H.els.findIndex(e=>e.name==="vertex"); if(vi<0) throw new Error("PLY nemá element vertex");
+  const V=H.els[vi]; if(V.list) throw new Error("vertex so zoznamom (list) nie je podporený");
+  let o=0; for(const p of V.props){ p.o=o; o+=(TY[p.t]||[0,0])[1]; } V.stride=o;
+  let pre=0; for(let i=0;i<vi;i++){ const e=H.els[i]; if(e.n&&e.list) throw new Error("pred vertex je element so zoznamom"); pre+=e.n*e.props.reduce((s,p)=>s+(TY[p.t]||[0,0])[1],0); }
+  H.V=V; H.vstart=H.off+pre;
+  const f=(...nm)=>V.props.find(p=>nm.includes(p.name.toLowerCase()));
+  H.x=f("x"); H.y=f("y"); H.z=f("z"); H.r=f("red","r","diffuse_red"); H.g=f("green","g","diffuse_green"); H.b=f("blue","b","diffuse_blue");
+  if(!H.x||!H.y||!H.z) throw new Error("chýba x, y alebo z");
+  H.ascii=H.fmt==="ascii"; H.le=H.fmt!=="binary_big_endian";
+  if(H.ascii&&H.els.some((e,i)=>i!==vi&&e.n>0)) throw new Error("ASCII PLY s ďalšími elementmi — test podporuje len samotné body");
+  return H;
+}
+/** prvý bod — lokálny počiatok (celé metre), aby súradnice S-JTSK nestratili presnosť vo float32 */
+async function plyOrigin(file,H){
+  if(H.ascii){ const t=new TextDecoder().decode(await file.slice(H.vstart,H.vstart+4096).arrayBuffer()).split(/\r?\n/)[0].trim().split(/\s+/);
+    return [H.x,H.y,H.z].map(p=>Math.round(+t[H.V.props.indexOf(p)]||0)); }
+  const dv=new DataView(await file.slice(H.vstart,H.vstart+H.V.stride).arrayBuffer());
+  return [H.x,H.y,H.z].map(p=>{ const [fn]=TY[p.t]; return Math.round(dv["get"+fn](p.o,H.le)||0); });
+}
+/** telo slučky pre binárny PLY generované presne pre rozloženie súboru */
+function loopSrc(H){
+  const g=(p)=>{ const [fn,sz]=TY[p.t]; return sz===1?`dv.get${fn}(p+${p.o})`:`dv.get${fn}(p+${p.o},${H.le})`; };
+  const col=(p)=>!p?"0":(p.t==="ushort"||p.t==="uint16")?`(${g(p)}>>8)`:(p.t==="float"||p.t==="double")?`(${g(p)}*255)`:g(p);
+  const hasC=!!(H.r&&H.g&&H.b);
+  return `for(let i=0;i<m;i++){ const p=i*${H.V.stride}; const x=${g(H.x)}-ox, y=${g(H.y)}-oy, z=${g(H.z)}-oz;
+    if(x<b0)b0=x; if(x>b3)b3=x; if(y<b1)b1=y; if(y>b4)b4=y; if(z<b2)b2=z; if(z>b5)b5=z;
+    if(X){ const q=k*3; X[q]=x; X[q+1]=y; X[q+2]=z; ${hasC?`C[q]=${col(H.r)}; C[q+1]=${col(H.g)}; C[q+2]=${col(H.b)};`:""} }
+    k++; }`;
+}
+const WORKER_PLY=`let X=null, C=null;
+onmessage=async(e)=>{ const d=e.data; if(d.free){ X=C=null; postMessage({freed:true}); return; }
+  const t0=performance.now(), [ox,oy,oz]=d.org; let b0=1e300,b1=1e300,b2=1e300,b3=-1e300,b4=-1e300,b5=-1e300, k=0;
+  try{
+  if(!d.ascii){
+    const n=Math.floor((d.end-d.start)/d.stride);
+    X=d.keep?new Float32Array(n*3):null; C=(d.keep&&d.col)?new Uint8Array(n*3):null;
+    const body=new Function("dv","m","k0","st","X","C","ox","oy","oz", "let [b0,b1,b2,b3,b4,b5]=st, k=k0; "+d.loop+" return [k,b0,b1,b2,b3,b4,b5];");
+    const rd=d.file.slice(d.start,d.end).stream().getReader(); let rest=null;
+    for(;;){ const {done,value}=await rd.read(); if(done) break;
+      let buf=value; if(rest){ buf=new Uint8Array(rest.length+value.length); buf.set(rest); buf.set(value,rest.length); }
+      const m=Math.floor(buf.length/d.stride), r=body(new DataView(buf.buffer,buf.byteOffset,buf.byteLength),m,k,[b0,b1,b2,b3,b4,b5],X,C,ox,oy,oz);
+      [k,b0,b1,b2,b3,b4,b5]=r; rest=buf.length>m*d.stride?buf.slice(m*d.stride):null; }
+  } else {
+    // ASCII: úsek od prvého celého riadku po riadok, ktorý presahuje koniec
+    const s0=d.first?d.start:d.start-1, ext=Math.min(d.fileSize,d.end+4096), raw=new Uint8Array(await d.file.slice(s0,ext).arrayBuffer());
+    let a=0; if(!d.first){ while(a<raw.length&&raw[a]!==10) a++; a++; }          // od prvého celého riadku
+    let z=d.end-s0; if(d.end<d.fileSize){ while(z<raw.length&&raw[z-1]!==10) z++; } else z=raw.length;   // dočítať riadok cez koniec
+    const txt=new TextDecoder().decode(raw.subarray(a,z)), L=txt.split("\\n"); const ix=d.ix;
+    const keep=[]; for(const ln of L){ const s=ln.trim(); if(!s) continue; const w=s.split(/\\s+/);
+      const x=+w[ix[0]]-ox, y=+w[ix[1]]-oy, zz=+w[ix[2]]-oz;
+      if(x<b0)b0=x; if(x>b3)b3=x; if(y<b1)b1=y; if(y>b4)b4=y; if(zz<b2)b2=zz; if(zz>b5)b5=zz;
+      if(d.keep) keep.push(x,y,zz); k++; }
+    if(d.keep) X=Float32Array.from(keep);
+  }
+  postMessage({n:k,bb:[b0,b1,b2,b3,b4,b5],ms:performance.now()-t0,kept:(X?X.byteLength:0)+(C?C.byteLength:0)});
+  }catch(err){ postMessage({err:String(err).slice(0,140),n:k,ms:performance.now()-t0}); } };`;
+let plyWorkers=[];
+function freeWorkers(){ for(const w of plyWorkers) w.terminate(); plyWorkers=[]; }
+async function plyRun(file,H,org,nw,keep){
+  freeWorkers();
+  const n=H.V.n, per=Math.ceil(n/nw), loop=H.ascii?"":loopSrc(H), hasC=!!(H.r&&H.g&&H.b), t0=performance.now();
+  const ix=[H.x,H.y,H.z].map(p=>H.V.props.indexOf(p)), dataEnd=H.ascii?file.size:H.vstart+n*H.V.stride;
+  const jobs=Array.from({length:nw},(_,j)=>{
+    let start,end;
+    if(H.ascii){ const sz=Math.ceil((file.size-H.vstart)/nw); start=H.vstart+j*sz; end=Math.min(file.size,start+sz); }
+    else { const a=Math.min(n,j*per), b=Math.min(n,(j+1)*per); start=H.vstart+a*H.V.stride; end=H.vstart+b*H.V.stride; }
+    return new Promise((res)=>{ const w=workerFrom(WORKER_PLY); plyWorkers.push(w);
+      w.onmessage=(e)=>res(e.data); w.onerror=(e)=>res({err:e.message,n:0});
+      w.postMessage({file,start,end,stride:H.V.stride,loop,keep,col:hasC,org,ascii:H.ascii,ix,first:j===0,fileSize:dataEnd}); });
+  });
+  const R=await Promise.all(jobs), ms=performance.now()-t0;
+  const tot=R.reduce((s,r)=>s+(r.n||0),0), err=R.find(r=>r.err), kept=R.reduce((s,r)=>s+(r.kept||0),0);
+  const bb=[0,1,2].map(i=>Math.min(...R.map(r=>r.bb?r.bb[i]:1e300))).concat([3,4,5].map(i=>Math.max(...R.map(r=>r.bb?r.bb[i]:-1e300))));
+  if(!keep) freeWorkers();
+  return {nw,keep,tot,s:ms/1000,mps:tot/ms/1000,kept,bb,err:err&&err.err};
+}
+$("fPly").addEventListener("change",async(e)=>{
+  const file=e.target.files[0]; if(!file) return; const L=[];
+  try{
+    const H=await plyHeader(file), org=await plyOrigin(file,H), nc=navigator.hardwareConcurrency||4;
+    L.push(`${file.name} · ${f1(file.size/G,2)} GiB · ${H.fmt} · bodov ${H.V.n.toLocaleString("sk")} · ${H.V.stride||"?"} B/bod`);
+    L.push(`vlastnosti bodu: ${H.V.props.map(p=>p.name+":"+p.t).join(" ")}`);
+    L.push(`lokálny počiatok: ${org.join(" ")}`+(H.els.length>1?` · ďalšie elementy: ${H.els.filter(x=>x!==H.V).map(x=>x.name+" "+x.n).join(", ")}`:""));
+    put("oPly",L.join("\n"));
+    const plan=[[nc,false,"prvé čítanie (môže ísť z disku)"],[1,false,""],[Math.min(8,nc),false,""],[Math.min(16,nc),false,""],[nc,false,""],[nc,true,"celé mračno v pamäti"]];
+    const seen=new Set();
+    for(const [nw,keep,lab] of plan){ const key=nw+":"+keep+":"+lab; if(seen.has(key)) continue; seen.add(key);
+      say(`čítam: ${nw} vlákien${keep?", ponechať v pamäti":""}…`);
+      const r=await plyRun(file,H,org,nw,keep);
+      L.push(`${String(nw).padStart(3)} vlákien${keep?" + v pamäti":""}: ${f1(r.s,2)} s · ${f1(r.mps)} mil. bodov/s · ${f1(file.size/G/r.s,2)} GiB/s`+
+        (lab?` · ${lab}`:"")+(keep?` · drží ${f1(r.kept/G,2)} GiB`:"")+(r.err?` · CHYBA: ${r.err}`:"")+(r.tot!==H.V.n?` · prečítaných ${r.tot.toLocaleString("sk")}`:""));
+      if(keep&&!r.err) L.push(`rozmer mračna: ${f1(r.bb[3]-r.bb[0],2)} × ${f1(r.bb[4]-r.bb[1],2)} × ${f1(r.bb[5]-r.bb[2],2)} m`);
+      put("oPly",L.join("\n"));
+    }
+  }catch(err){ L.push("CHYBA: "+err.message); }
+  freeWorkers(); put("oPly",L.join("\n")); say("");
+});
+
+/* ---------- 3 · kreslenie bodov ---------- */
+$("bGpu").addEventListener("click",async()=>{
+  $("bGpu").disabled=true; const L=[`WebGL2: ${glInfo()}`]; put("oGpu",L.join("\n"));
+  const cv=$("cv"), gl=cv.getContext("webgl2",{antialias:false,preserveDrawingBuffer:false});
+  if(!gl){ L.push("WebGL2 nie je k dispozícii"); put("oGpu",L.join("\n")); return; }
+  let lost=false; cv.addEventListener("webglcontextlost",(e)=>{ e.preventDefault(); lost=true; });
+  const sh=(t,s)=>{ const o=gl.createShader(t); gl.shaderSource(o,s); gl.compileShader(o); return o; };
+  const pr=gl.createProgram();
+  gl.attachShader(pr,sh(gl.VERTEX_SHADER,`#version 300 es
+    in vec3 p; uniform float a; out vec3 c;
+    void main(){ float s=sin(a), k=cos(a); vec3 q=vec3(k*p.x+s*p.z,p.y,-s*p.x+k*p.z); gl_Position=vec4(q.xy*0.9,q.z*0.5,1.0); gl_PointSize=1.0; c=p*0.5+0.5; }`));
+  gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,`#version 300 es
+    precision mediump float; in vec3 c; out vec4 o; void main(){ o=vec4(c,1.0); }`));
+  gl.linkProgram(pr); gl.useProgram(pr); gl.enable(gl.DEPTH_TEST);
+  const ua=gl.getUniformLocation(pr,"a"), CH=10e6, bufs=[]; const steps=(new URLSearchParams(location.search).get("gpu")||"10,25,50,100,200").split(",").map(Number);
+  const px=new Uint8Array(4);
+  for(const M of steps){
+    const need=Math.ceil(M*1e6/CH);
+    try{
+      while(bufs.length<need){ say(`grafická karta: nahrávam ${(bufs.length+1)*10} mil. bodov…`); await new Promise(r=>setTimeout(r,0));
+        const d=new Float32Array(CH*3); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+        const b=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b); gl.bufferData(gl.ARRAY_BUFFER,d,gl.STATIC_DRAW); bufs.push(b);
+        if(gl.getError()===gl.OUT_OF_MEMORY) throw new Error("málo pamäte grafickej karty"); }
+      const frame=(a)=>{ gl.viewport(0,0,cv.width,cv.height); gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT); gl.uniform1f(ua,a);
+        let left=M*1e6; for(const b of bufs){ if(left<=0) break; const n=Math.min(CH,left); gl.bindBuffer(gl.ARRAY_BUFFER,b); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0); gl.drawArrays(gl.POINTS,0,n); left-=n; }
+        gl.readPixels(0,0,1,1,gl.RGBA,gl.UNSIGNED_BYTE,px); };
+      frame(0); const t0=performance.now(), F=8; for(let i=1;i<=F;i++){ frame(i*0.05); await new Promise(r=>setTimeout(r,0)); }
+      if(lost) throw new Error("grafická karta stratila kontext");
+      const fps=F/((performance.now()-t0)/1000);
+      L.push(`${String(M).padStart(4)} mil. bodov: ${f1(fps)} snímok/s · v pamäti karty ${f1(M*12/1024,2)} GiB`); put("oGpu",L.join("\n"));
+      if(fps<5) break;
+    }catch(err){ L.push(`${M} mil. bodov: ${err.message}`); put("oGpu",L.join("\n")); break; }
+  }
+  for(const b of bufs) gl.deleteBuffer(b); say(""); $("bGpu").disabled=false;
+});
+</script>
+</body>
+</html>
