@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="sk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PointCloud – mračno</title>
+<style>
+:root{--bg:#11161c;--panel:#1a2129;--panel2:#212a34;--line:#2c3743;--ink:#e2e8ef;--dim:#93a2b3;--gold:#e8b23a;--bad:#ff6b57}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:13.5px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+#app{display:grid;grid-template-columns:300px 1fr;height:100vh}
+aside{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:12px 12px 20px}
+h1{font-size:17px;margin:0 0 10px}
+h1 a{color:inherit;text-decoration:none}
+h2{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);margin:0 0 6px}
+section{border-top:1px solid var(--line);padding:10px 0 8px}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:5px 0}
+button,select,input{font:inherit;color:var(--ink)}
+button,.btn{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:4px 9px;cursor:pointer;display:inline-block}
+button:hover,.btn:hover{border-color:var(--gold)}
+button.pri,.btn.pri{background:var(--gold);color:#1a1300;border-color:var(--gold);font-weight:600}
+button.on{background:#3a2f12;border-color:var(--gold);color:var(--gold)}
+button:disabled{opacity:.4;cursor:default;border-color:var(--line)}
+select,input[type=number]{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:3px 5px}
+input[type=number]{width:100%}
+input[type=range]{width:120px;accent-color:var(--gold)}
+label{display:inline-flex;align-items:center;gap:5px}
+.k{color:var(--dim);font-size:12px}
+pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7px 9px;margin:6px 0 0;white-space:pre-wrap;font:11.5px/1.5 ui-monospace,Menlo,Consolas,monospace;min-height:2em}
+.box{display:grid;grid-template-columns:18px 1fr 1fr;gap:4px 6px;align-items:center;margin:6px 0}
+.box span{color:var(--dim);font-size:12px}
+#view{position:relative;overflow:hidden;background:#0b0f14}
+#gl,#ov{position:absolute;inset:0;width:100%;height:100%;display:block}
+#ov{cursor:grab}
+#ov.lasso{cursor:crosshair}
+#bar{position:absolute;left:0;right:0;bottom:0;padding:4px 10px;background:rgba(17,22,28,.85);border-top:1px solid var(--line);font-size:12px;color:var(--dim);pointer-events:none;white-space:nowrap;overflow:hidden}
+#busy{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--gold);color:var(--gold);border-radius:4px;padding:6px 14px;display:none;pointer-events:none}
+#hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:15px;pointer-events:none;text-align:center;padding:20px}
+#view.drag{outline:2px dashed var(--gold);outline-offset:-8px}
+</style>
+</head>
+<body>
+<div id="app">
+<aside>
+  <h1><a href="index.html">PointCloud</a> <span class="k">· etapa 1</span></h1>
+
+  <section>
+    <h2>Súbor</h2>
+    <div class="row"><label class="btn pri">Otvoriť PLY…<input type="file" id="fOpen" accept=".ply" hidden></label><span class="k">alebo pusti súbor do okna</span></div>
+    <div class="row">
+      <select id="expFmt" title="Typ súradníc v uloženom súbore"><option value="f">float32</option><option value="d">float64</option></select>
+      <button id="bExp" disabled>Uložiť PLY…</button>
+    </div>
+    <pre id="info">Žiadne mračno.</pre>
+  </section>
+
+  <section>
+    <h2>Zobrazenie</h2>
+    <div class="row"><label class="k">farba <select id="colMode"><option value="0">RGB</option><option value="1">výška</option></select></label>
+      <label class="k">bod <input type="range" id="ps" min="1" max="6" step="0.5" value="1.5"></label></div>
+    <div class="row"><label class="k">body pri pohybe <select id="budget"><option value="5">5 mil.</option><option value="10">10 mil.</option><option value="20" selected>20 mil.</option><option value="40">40 mil.</option><option value="80">80 mil.</option></select></label></div>
+    <div class="row"><button data-v="fit" title="F">Celé</button><button data-v="top" title="T">Zhora</button><button data-v="py">Pohľad +Y</button><button data-v="px">Pohľad +X</button></div>
+  </section>
+
+  <section>
+    <h2>Výber a strih</h2>
+    <div class="row"><button id="bLasso" title="L">Laso</button><span class="k">Shift pridá · Ctrl uberie</span></div>
+    <div class="row">
+      <button data-a="del" title="Delete">Zmazať vybrané</button>
+      <button data-a="keep">Ponechať vybrané</button>
+    </div>
+    <div class="row">
+      <button data-a="inv" title="I">Obrátiť výber</button>
+      <button data-a="clr" title="Esc">Zrušiť výber</button>
+      <button data-a="undo" title="Ctrl+Z">Späť</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Kváder</h2>
+    <div class="box">
+      <span></span><span>od</span><span>do</span>
+      <span>X</span><input type="number" id="b0" step="0.1"><input type="number" id="b3" step="0.1">
+      <span>Y</span><input type="number" id="b1" step="0.1"><input type="number" id="b4" step="0.1">
+      <span>Z</span><input type="number" id="b2" step="0.1"><input type="number" id="b5" step="0.1">
+    </div>
+    <div class="row"><label class="k"><input type="checkbox" id="boxShow" checked> obrys</label>
+      <label class="k" title="Len náhľad — body sa nemažú"><input type="checkbox" id="boxClip"> zobraziť len vnútro</label></div>
+    <div class="row"><button data-a="boxOut">Zmazať mimo</button><button data-a="boxIn">Zmazať vnútri</button><button id="bBoxReset">Na celé mračno</button></div>
+    <p class="k">Súradnice kvádra sú v súradniciach súboru.</p>
+  </section>
+
+  <section class="k">
+    Ľavé tlačidlo otáča, pravé (alebo Shift + ľavé) posúva, koliesko približuje k miestu pod kurzorom, dvojklik nastaví stred otáčania na bod.
+    Pri pohybe sa kreslí preriedené mračno, v pokoji celé.
+  </section>
+</aside>
+
+<div id="view">
+  <canvas id="gl"></canvas>
+  <canvas id="ov"></canvas>
+  <div id="hint">Otvor mračno PLY (binárne alebo ASCII).<br>Súbor sa nikam neposiela — číta ho prehliadač priamo z disku.</div>
+  <div id="busy"></div>
+  <div id="bar"></div>
+</div>
+</div>
+
+<script>
+"use strict";
+/* ============ izolácia (SharedArrayBuffer) cez service worker — GitHub Pages ============ */
+(async()=>{
+  if(window.crossOriginIsolated||!("serviceWorker" in navigator)||location.protocol==="file:") return;
+  try{
+    const reg=await navigator.serviceWorker.register("coi-sw.js");
+    if(navigator.serviceWorker.controller) return;
+    if(sessionStorage.getItem("coiReload")) return;
+    const go=()=>{ sessionStorage.setItem("coiReload","1"); location.reload(); };
+    if(reg.active) go(); else (reg.installing||reg.waiting).addEventListener("statechange",(e)=>{ if(e.target.state==="activated") go(); });
+  }catch(e){ console.warn("coi-sw",e); }
+})();
+
+const $=(id)=>document.getElementById(id);
+const f1=(v,n=1)=>(+v).toFixed(n).replace(".",",");
+const fN=(v)=>Math.round(v).toLocaleString("sk");
+const G=2**30;
+const SHARED=!!(window.crossOriginIsolated&&typeof SharedArrayBuffer!=="undefined");
+const alloc=(b)=>SHARED?new SharedArrayBuffer(b):new ArrayBuffer(b);
+const NW=Math.max(1,Math.min(32,navigator.hardwareConcurrency||4));
+const CELL_PTS=40000;        // cieľový počet bodov na priestorový blok (pri rovnomernom vyplnení)
+const CHUNK=16e6;            // bodov na jeden kus v grafickej karte
+
+/* ============ výpočtové jadrá — bežia vo workeroch (alebo v hlavnom vlákne bez izolácie) ============
+   Body: X Float32 (x,y,z voči lokálnemu počiatku), C32 Uint32 (RGBA), M Uint8 (stav bodu).
+   Stav bodu: 0 = bežný, 1 = vybraný, 2 = zmazaný natrvalo, 3…255 = zmazaný operáciou č. (dá sa vrátiť). */
+function KERNELS(){
+  const cellOf=(g)=>{ const mx=g.mn[0],my=g.mn[1],mz=g.mn[2],gi=g.inv,nx=g.nx,ny=g.ny,nz=g.nz;
+    return (x,y,z)=>{ let ix=((x-mx)*gi)|0, iy=((y-my)*gi)|0, iz=((z-mz)*gi)|0;
+      if(ix<0)ix=0; else if(ix>=nx)ix=nx-1; if(iy<0)iy=0; else if(iy>=ny)iy=ny-1; if(iz<0)iz=0; else if(iz>=nz)iz=nz-1;
+      return (iz*ny+iy)*nx+ix; }; };
+  return {
+  async parse(S,a){
+    const [ox,oy,oz]=a.org, st=[1e300,1e300,1e300,-1e300,-1e300,-1e300]; let k=0;
+    const mk=(b)=>a.shared?new SharedArrayBuffer(b):new ArrayBuffer(b);
+    if(!a.ascii){
+      const n=Math.floor((a.end-a.start)/a.stride);
+      S.tX=new Float32Array(mk(n*12)); S.tC=a.col?new Uint8Array(mk(n*4)):null;
+      const body=new Function("dv","m","k","st","X","C","ox","oy","oz",a.loop);
+      const rd=a.file.slice(a.start,a.end).stream().getReader(); let rest=null;
+      for(;;){ const {done,value}=await rd.read(); if(done) break;
+        let buf=value; if(rest){ buf=new Uint8Array(rest.length+value.length); buf.set(rest); buf.set(value,rest.length); }
+        const m=Math.min(Math.floor(buf.length/a.stride),n-k);
+        k=body(new DataView(buf.buffer,buf.byteOffset,buf.byteLength),m,k,st,S.tX,S.tC,ox,oy,oz);
+        rest=buf.length>m*a.stride?buf.slice(m*a.stride):null; }
+    } else {
+      const s0=a.first?a.start:a.start-1, ext=Math.min(a.dataEnd,a.end+65536);
+      const raw=new Uint8Array(await a.file.slice(s0,ext).arrayBuffer());
+      let p0=0; if(!a.first){ while(p0<raw.length&&raw[p0]!==10) p0++; p0++; }
+      let p1=a.end-s0; if(a.end<a.dataEnd){ while(p1<raw.length&&raw[p1-1]!==10) p1++; } else p1=raw.length;
+      const L=new TextDecoder().decode(raw.subarray(Math.min(p0,p1),p1)).split("\n"), ix=a.ix;
+      const xs=new Float32Array(L.length*3), cs=a.col?new Uint8Array(L.length*4):null;
+      for(const ln of L){ const s=ln.trim(); if(!s) continue; const w=s.split(/\s+/);
+        const x=+w[ix[0]]-ox, y=+w[ix[1]]-oy, z=+w[ix[2]]-oz;
+        if(x<st[0])st[0]=x; if(x>st[3])st[3]=x; if(y<st[1])st[1]=y; if(y>st[4])st[4]=y; if(z<st[2])st[2]=z; if(z>st[5])st[5]=z;
+        xs[k*3]=x; xs[k*3+1]=y; xs[k*3+2]=z;
+        if(cs){ const c=k*4, sc=a.cscale; cs[c]=Math.max(0,Math.min(255,+w[ix[3]]*sc)); cs[c+1]=Math.max(0,Math.min(255,+w[ix[4]]*sc)); cs[c+2]=Math.max(0,Math.min(255,+w[ix[5]]*sc)); cs[c+3]=255; }
+        k++; }
+      S.tX=new Float32Array(mk(k*12)); S.tX.set(xs.subarray(0,k*3));
+      S.tC=cs?new Uint8Array(mk(k*4)):null; if(cs) S.tC.set(cs.subarray(0,k*4));
+    }
+    S.tn=k;
+    if(a.shared) return {r:{n:k,bb:st}};
+    const r={n:k,bb:st,tX:S.tX,tC:S.tC}, t=[S.tX.buffer]; if(S.tC) t.push(S.tC.buffer); S.tX=S.tC=null; return {r,t};
+  },
+  hist(S,a){ const cell=cellOf(a.g), h=new Uint32Array(a.g.nc), X=S.tX, n=S.tn;
+    for(let i=0,o=0;i<n;i++,o+=3) h[cell(X[o],X[o+1],X[o+2])]++;
+    return {r:h,t:[h.buffer]}; },
+  init(S,a){ S.X=a.X?new Float32Array(a.X):null; S.C32=a.C?new Uint32Array(a.C):null; S.C8=a.C?new Uint8Array(a.C):null; S.M=a.M?new Uint8Array(a.M):null;
+    if(!a.X){ S.tX=S.tC=null; } return {r:1}; },
+  scatter(S,a){ const cell=cellOf(a.g), off=a.off, X=S.tX, n=S.tn, D=S.X, DC=S.C32;
+    const tc=S.tC?new Uint32Array(S.tC.buffer,S.tC.byteOffset,n):null;
+    for(let i=0,o=0;i<n;i++,o+=3){ const j=off[cell(X[o],X[o+1],X[o+2])]++, q=j*3; D[q]=X[o]; D[q+1]=X[o+1]; D[q+2]=X[o+2]; if(tc) DC[j]=tc[i]; }
+    S.tX=S.tC=null; S.tn=0; return {r:1}; },
+  shuffle(S,a){ const X=S.X, C=S.C32, R=a.ranges; let s=(a.seed|0)||1;
+    for(let r=0;r<R.length;r+=2){ const b=R[r], cnt=R[r+1];
+      for(let i=cnt-1;i>0;i--){ s^=s<<13; s^=s>>>17; s^=s<<5; const j=(s>>>0)%(i+1); if(j===i) continue;
+        const p=(b+i)*3, q=(b+j)*3; let t=X[p];X[p]=X[q];X[q]=t; t=X[p+1];X[p+1]=X[q+1];X[q+1]=t; t=X[p+2];X[p+2]=X[q+2];X[q+2]=t;
+        if(C){ t=C[b+i]; C[b+i]=C[b+j]; C[b+j]=t; } } }
+    return {r:1}; },
+  lasso(S,a){ const X=S.X, M=S.M, m=a.mvp, W=a.W, H=a.H, B=a.bmp, mode=a.mode, bx=a.box; let sel=0;
+    for(let i=a.a;i<a.b;i++){ const v=M[i]; if(v>=2) continue;
+      const o=i*3, x=X[o], y=X[o+1], z=X[o+2]; let ins=false;
+      if(!bx||(x>=bx[0]&&y>=bx[1]&&z>=bx[2]&&x<=bx[3]&&y<=bx[4]&&z<=bx[5])){
+        const w=m[3]*x+m[7]*y+m[11]*z+m[15];
+        if(w>1e-9){ const cx=(m[0]*x+m[4]*y+m[8]*z+m[12])/w, cy=(m[1]*x+m[5]*y+m[9]*z+m[13])/w, cz=(m[2]*x+m[6]*y+m[10]*z+m[14])/w;
+          if(cx>=-1&&cx<1&&cy>-1&&cy<=1&&cz>=-1&&cz<=1){ const px=((cx+1)*0.5*W)|0, py=((1-cy)*0.5*H)|0; ins=B[py*W+px]!==0; } } }
+      let nv=v; if(mode===0) nv=ins?1:0; else if(mode===1){ if(ins) nv=1; } else if(ins) nv=0;
+      if(nv!==v) M[i]=nv; if(nv===1) sel++; }
+    return {r:sel}; },
+  boxOp(S,a){ const X=S.X, M=S.M, b=a.box, ins=a.inside, op=a.op; let k=0;
+    for(let i=a.a;i<a.b;i++){ if(M[i]>=2) continue; const o=i*3, x=X[o], y=X[o+1], z=X[o+2];
+      const inb=x>=b[0]&&y>=b[1]&&z>=b[2]&&x<=b[3]&&y<=b[4]&&z<=b[5]; if(inb===ins){ M[i]=op; k++; } }
+    return {r:k}; },
+  maskOp(S,a){ const M=S.M, kd=a.kind, op=a.op; let alive=0, sel=0;
+    for(let i=a.a;i<a.b;i++){ const v0=M[i]; let v=v0;
+      switch(kd){
+        case 0: if(v===1) v=op; break;                      // zmazať vybrané
+        case 1: if(v===0) v=op; else if(v===1) v=0; break;  // ponechať vybrané
+        case 2: if(v<2) v=1-v; break;                       // obrátiť výber
+        case 3: if(v===1) v=0; break;                       // zrušiť výber
+        case 4: if(v===op) v=0; break;                      // späť
+        case 5: if(v>2) v=2; break;                         // zlúčiť históriu
+      }
+      if(v!==v0) M[i]=v; if(v<2){ alive++; if(v===1) sel++; } }
+    return {r:[alive,sel]}; },
+  exp(S,a){ const X=S.X, M=S.M, C=S.C8, o3=a.org, dbl=a.dbl, col=a.col&&!!C; let n=0;
+    for(let i=a.a;i<a.b;i++) if(M[i]<2) n++;
+    const rs=(dbl?24:12)+(col?3:0), buf=new ArrayBuffer(n*rs), dv=new DataView(buf); let p=0;
+    for(let i=a.a;i<a.b;i++){ if(M[i]>=2) continue; const o=i*3;
+      if(dbl){ dv.setFloat64(p,X[o]+o3[0],true); dv.setFloat64(p+8,X[o+1]+o3[1],true); dv.setFloat64(p+16,X[o+2]+o3[2],true); p+=24; }
+      else { dv.setFloat32(p,X[o]+o3[0],true); dv.setFloat32(p+4,X[o+1]+o3[1],true); dv.setFloat32(p+8,X[o+2]+o3[2],true); p+=12; }
+      if(col){ const c=i*4; dv.setUint8(p,C[c]); dv.setUint8(p+1,C[c+1]); dv.setUint8(p+2,C[c+2]); p+=3; } }
+    return {r:{buf,n},t:[buf]}; },
+  };
+}
+const KM=KERNELS();
+const WORKER_SRC=`${KERNELS.toString()}
+const K=KERNELS(), S={};
+onmessage=async(e)=>{ const {id,k,a}=e.data;
+  try{ const o=(await K[k](S,a))||{}; postMessage({id,r:o.r},o.t||[]); }
+  catch(err){ postMessage({id,err:String(err&&err.message||err)}); } };`;
+const WORKER_URL=URL.createObjectURL(new Blob([WORKER_SRC],{type:"text/javascript"}));
+
+class Pool{
+  constructor(n){ this.w=[]; this.cb=new Map(); this.id=0;
+    for(let i=0;i<n;i++){ const w=new Worker(WORKER_URL);
+      w.onmessage=(e)=>{ const c=this.cb.get(e.data.id); if(!c) return; this.cb.delete(e.data.id); e.data.err?c.rej(new Error(e.data.err)):c.res(e.data.r); };
+      w.onerror=(e)=>{ for(const c of this.cb.values()) c.rej(new Error(e.message||"chyba vo vlákne")); this.cb.clear(); };
+      this.w.push(w); } }
+  call(i,k,a,tr){ return new Promise((res,rej)=>{ const id=++this.id; this.cb.set(id,{res,rej}); this.w[i].postMessage({id,k,a},tr||[]); }); }
+  close(){ for(const w of this.w) w.terminate(); this.w=[]; }
+}
+let pool=null, MS=[];                       // MS = stavy pre hlavné vlákno, keď nie je izolácia
+function exec(i,k,a,tr){ return (SHARED||k==="parse")?pool.call(i,k,a,tr):Promise.resolve(KM[k](MS[i],a)).then((o)=>o&&o.r); }
+const rg=(i)=>({a:Math.floor(i*D.n/NW),b:Math.floor((i+1)*D.n/NW)});
+async function run(k,fn){ if(!SHARED) await new Promise((r)=>setTimeout(r,20)); return Promise.all(Array.from({length:NW},(_,i)=>exec(i,k,fn(i)))); }
+
+/* ============ PLY ============ */
+const TY={char:["Int8",1],int8:["Int8",1],uchar:["Uint8",1],uint8:["Uint8",1],short:["Int16",2],int16:["Int16",2],ushort:["Uint16",2],uint16:["Uint16",2],
+  int:["Int32",4],int32:["Int32",4],uint:["Uint32",4],uint32:["Uint32",4],float:["Float32",4],float32:["Float32",4],double:["Float64",8],float64:["Float64",8]};
+async function plyHeader(file){
+  const b=new Uint8Array(await file.slice(0,Math.min(file.size,1<<20)).arrayBuffer()), t=new TextDecoder("latin1").decode(b);
+  const m=/end_header\r?\n/.exec(t); if(!m||!/^ply\r?\n/.test(t)) throw new Error("nie je PLY");
+  const H={off:m.index+m[0].length,fmt:"",els:[]}; let cur=null;
+  for(const ln of t.slice(0,m.index).split(/\r?\n/)){ const w=ln.trim().split(/\s+/);
+    if(w[0]==="format") H.fmt=w[1];
+    else if(w[0]==="element"){ cur={name:w[1],n:+w[2],props:[]}; H.els.push(cur); }
+    else if(w[0]==="property"&&cur){ if(w[1]==="list"){ cur.list=true; cur.props.push({name:w[4],t:"list"}); } else cur.props.push({name:w[2],t:w[1]}); } }
+  const vi=H.els.findIndex((e)=>e.name==="vertex"); if(vi<0) throw new Error("PLY nemá element vertex");
+  const V=H.els[vi]; if(V.list) throw new Error("vertex so zoznamom (list) nie je podporený");
+  let o=0; for(const p of V.props){ if(!TY[p.t]) throw new Error("neznámy typ vlastnosti: "+p.t); p.o=o; o+=TY[p.t][1]; } V.stride=o;
+  let pre=0; for(let i=0;i<vi;i++){ const e=H.els[i]; if(e.n&&e.list) throw new Error("pred vertex je element so zoznamom"); pre+=e.n*e.props.reduce((s,p)=>s+(TY[p.t]||[0,0])[1],0); }
+  H.V=V; H.vstart=H.off+pre;
+  const f=(...nm)=>V.props.find((p)=>nm.includes(p.name.toLowerCase()));
+  H.x=f("x"); H.y=f("y"); H.z=f("z"); H.r=f("red","r","diffuse_red"); H.g=f("green","g","diffuse_green"); H.b=f("blue","b","diffuse_blue");
+  if(!H.x||!H.y||!H.z) throw new Error("chýba x, y alebo z");
+  H.ascii=H.fmt==="ascii"; H.le=H.fmt!=="binary_big_endian";
+  if(H.ascii&&H.els.some((e,i)=>i!==vi&&e.n>0)) throw new Error("ASCII PLY s ďalšími elementmi (napr. plochy) nie je podporené");
+  return H;
+}
+async function plyOrigin(file,H){
+  if(H.ascii){ const t=new TextDecoder().decode(await file.slice(H.vstart,H.vstart+4096).arrayBuffer()).split(/\r?\n/)[0].trim().split(/\s+/);
+    return [H.x,H.y,H.z].map((p)=>Math.round(+t[H.V.props.indexOf(p)]||0)); }
+  const dv=new DataView(await file.slice(H.vstart,H.vstart+H.V.stride).arrayBuffer());
+  return [H.x,H.y,H.z].map((p)=>{ const [fn]=TY[p.t]; return Math.round(dv["get"+fn](p.o,H.le)||0); });
+}
+const isFloat=(t)=>/^(float|double|float32|float64)$/.test(t);
+function loopSrc(H){
+  const g=(p)=>{ const [fn,sz]=TY[p.t]; return sz===1?`dv.get${fn}(q+${p.o})`:`dv.get${fn}(q+${p.o},${H.le})`; };
+  const col=(p)=>(p.t==="ushort"||p.t==="uint16")?`(${g(p)}>>8)`:isFloat(p.t)?`Math.max(0,Math.min(255,${g(p)}*255))`:g(p);
+  const hasC=!!(H.r&&H.g&&H.b);
+  return `let b0=st[0],b1=st[1],b2=st[2],b3=st[3],b4=st[4],b5=st[5];
+  for(let i=0;i<m;i++){ const q=i*${H.V.stride}; const x=${g(H.x)}-ox, y=${g(H.y)}-oy, z=${g(H.z)}-oz;
+    if(x<b0)b0=x; if(x>b3)b3=x; if(y<b1)b1=y; if(y>b4)b4=y; if(z<b2)b2=z; if(z>b5)b5=z;
+    const o=k*3; X[o]=x; X[o+1]=y; X[o+2]=z;
+    ${hasC?`const c=k*4; C[c]=${col(H.r)}; C[c+1]=${col(H.g)}; C[c+2]=${col(H.b)}; C[c+3]=255;`:""}
+    k++; }
+  st[0]=b0; st[1]=b1; st[2]=b2; st[3]=b3; st[4]=b4; st[5]=b5; return k;`;
+}
+
+/* ============ stav ============ */
+let D={n:0}, busy=false, nextOp=3, undo=[];
+const ui={mode:0,ps:1.5,budget:20e6,lasso:false,boxShow:true,boxClip:false};
+function setBusy(t){ busy=!!t; $("busy").textContent=t||""; $("busy").style.display=t?"block":"none"; }
+const tick=()=>new Promise((r)=>setTimeout(r,0));
+
+/* ============ načítanie ============ */
+function freeData(){
+  if(D.chunks) for(const ch of D.chunks){ gl.deleteBuffer(ch.bx); if(ch.bc) gl.deleteBuffer(ch.bc); gl.deleteBuffer(ch.bm); gl.deleteVertexArray(ch.vao); }
+  if(pool) pool.close(); pool=null; MS=[]; D={n:0}; nextOp=3; undo=[];
+}
+async function openFile(file){
+  if(busy||!file) return;
+  setBusy("Čítam hlavičku…");
+  const T=[performance.now()];
+  try{
+    const H=await plyHeader(file), org=await plyOrigin(file,H);
+    freeData(); req();
+    pool=new Pool(NW); MS=Array.from({length:NW},()=>({}));
+    const n0=H.V.n, hasC=!!(H.r&&H.g&&H.b), loop=H.ascii?"":loopSrc(H);
+    const ix=[H.x,H.y,H.z,H.r,H.g,H.b].map((p)=>p?H.V.props.indexOf(p):-1);
+    const cscale=H.r&&isFloat(H.r.t)?255:(H.r&&(H.r.t==="ushort"||H.r.t==="uint16"))?1/257:1;
+    const dataEnd=H.ascii?file.size:H.vstart+n0*H.V.stride, per=Math.ceil(n0/NW);
+    setBusy(`Čítam ${fN(n0)} bodov (${NW} vlákien)…`);
+    const R=await Promise.all(Array.from({length:NW},(_,j)=>{ let start,end;
+      if(H.ascii){ const sz=Math.ceil((file.size-H.vstart)/NW); start=Math.min(file.size,H.vstart+j*sz); end=Math.min(file.size,start+sz); }
+      else { const a=Math.min(n0,j*per), b=Math.min(n0,(j+1)*per); start=H.vstart+a*H.V.stride; end=H.vstart+b*H.V.stride; }
+      return pool.call(j,"parse",{file,start,end,stride:H.V.stride,loop,col:hasC,org,ascii:H.ascii,ix,cscale,first:j===0,dataEnd,shared:SHARED}); }));
+    if(!SHARED) R.forEach((r,j)=>{ MS[j]={tX:r.tX,tC:r.tC,tn:r.n}; r.tX=r.tC=null; });
+    const n=R.reduce((s,r)=>s+r.n,0); if(!n) throw new Error("súbor neobsahuje body");
+    const bb=[0,1,2].map((i)=>Math.min(...R.map((r)=>r.bb[i]))).concat([3,4,5].map((i)=>Math.max(...R.map((r)=>r.bb[i]))));
+    T.push(performance.now());
+
+    // priestorové bloky
+    setBusy("Triedim body do blokov…");
+    const d=[bb[3]-bb[0],bb[4]-bb[1],bb[5]-bb[2]].map((v)=>Math.max(v,1e-3));
+    let s=Math.max(Math.cbrt(d[0]*d[1]*d[2]/Math.max(1,n/CELL_PTS)),Math.max(...d)/256), nx,ny,nz;
+    for(;;){ nx=Math.max(1,Math.ceil(d[0]/s)); ny=Math.max(1,Math.ceil(d[1]/s)); nz=Math.max(1,Math.ceil(d[2]/s)); if(nx*ny*nz<=2e6) break; s*=1.25; }
+    const g={mn:[bb[0],bb[1],bb[2]],inv:1/s,s,nx,ny,nz,nc:nx*ny*nz};
+    const hs=await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"hist",{g})));
+    const cnt=new Uint32Array(g.nc); for(const h of hs) for(let c=0;c<g.nc;c++) cnt[c]+=h[c];
+    const cst=new Float64Array(g.nc); for(let c=1;c<g.nc;c++) cst[c]=cst[c-1]+cnt[c-1];
+    const runOff=Float64Array.from(cst), offs=hs.map((h)=>{ const o=new Uint32Array(g.nc); for(let c=0;c<g.nc;c++){ o[c]=runOff[c]; runOff[c]+=h[c]; } return o; });
+    const X=new Float32Array(alloc(n*12)), C32=hasC?new Uint32Array(alloc(n*4)):null, M=new Uint8Array(alloc(n));
+    await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"init",{X:X.buffer,C:C32?C32.buffer:null,M:M.buffer})));
+    await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"scatter",{g,off:offs[i]},[offs[i].buffer])));
+    const cells=[];
+    for(let c=0;c<g.nc;c++){ if(!cnt[c]) continue; const ix_=c%nx, iy=Math.floor(c/nx)%ny, iz=Math.floor(c/(nx*ny));
+      const mn=[g.mn[0]+ix_*s,g.mn[1]+iy*s,g.mn[2]+iz*s]; cells.push({start:cst[c],cnt:cnt[c],mn,mx:[mn[0]+s,mn[1]+s,mn[2]+s],rel:0,vis:false}); }
+    D={file,name:file.name,n,org,bb,hasC,X,C32,C8:C32?new Uint8Array(C32.buffer):null,M,cells,g,alive:n,sel:0,
+       diag:Math.hypot(d[0],d[1],d[2]),fmt:H.fmt,stride:H.V.stride};
+    const grp=Array.from({length:NW},()=>[]); let gi=0, acc=0;
+    for(const c of cells){ grp[gi].push(c.start,c.cnt); acc+=c.cnt; if(gi<NW-1&&acc>=n*(gi+1)/NW) gi++; }
+    await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"shuffle",{ranges:grp[i],seed:Math.imul(i+1,0x9E3779B1)})));
+    T.push(performance.now());
+
+    // grafická karta
+    setBusy("Nahrávam na grafickú kartu…"); await tick();
+    D.chunks=[]; let cur=null;
+    for(const c of cells){ if(!cur||(cur.cnt>0&&cur.cnt+c.cnt>CHUNK)){ cur={start:c.start,cnt:0,cells:[]}; D.chunks.push(cur); } c.rel=c.start-cur.start; cur.cells.push(c); cur.cnt+=c.cnt; }
+    for(const ch of D.chunks){ makeChunk(ch); await tick(); }
+    gl.finish(); const ge=gl.getError(); if(ge===gl.OUT_OF_MEMORY) throw new Error("málo pamäte grafickej karty");
+    T.push(performance.now());
+
+    // rozhranie
+    $("colMode").value=hasC?"0":"1"; ui.mode=+$("colMode").value; $("colMode").options[0].disabled=!hasC;
+    $("expFmt").value=org.some((v)=>Math.abs(v)>=1e4)?"d":"f";
+    boxReset(); view("fit");
+    const mem=n*(12+(hasC?4:0)+1);
+    D.infoText=[`${file.name}`,`${H.fmt} · ${f1(file.size/G,2)} GiB · ${fN(n)} bodov · farba ${hasC?"áno":"nie"}`,
+      `lokálny počiatok: ${org.join(" ")}`,`rozmer: ${f1(d[0],2)} × ${f1(d[1],2)} × ${f1(d[2],2)} m`,
+      `blokov: ${fN(cells.length)} (hrana ${f1(s,2)} m) · kúskov na karte: ${D.chunks.length}`,
+      `čítanie ${f1((T[1]-T[0])/1000,2)} s · triedenie ${f1((T[2]-T[1])/1000,2)} s · karta ${f1((T[3]-T[2])/1000,2)} s`,
+      `pamäť: ${f1(mem/G,2)} GiB · ${SHARED?NW+" vlákien":"bez izolácie — úpravy bežia v hlavnom vlákne (pomalšie)"}`].join("\n");
+    $("hint").style.display="none"; $("bExp").disabled=false; updInfo(); req();
+  }catch(err){
+    console.error(err); freeData(); $("info").textContent="CHYBA: "+err.message; $("hint").style.display="";
+  }finally{ setBusy(""); }
+}
+function updInfo(){ if(!D.n){ $("info").textContent="Žiadne mračno."; return; }
+  $("info").textContent=D.infoText+`\nzostáva: ${fN(D.alive)} · zmazaných: ${fN(D.n-D.alive)} · vybraných: ${fN(D.sel)}${undo.length?` · krokov späť: ${undo.length}`:""}`; }
+
+/* ============ WebGL ============ */
+const cv=$("gl"), ov=$("ov"), octx=ov.getContext("2d");
+const gl=cv.getContext("webgl2",{antialias:false,powerPreference:"high-performance",preserveDrawingBuffer:false});
+if(!gl){ $("hint").textContent="WebGL2 nie je k dispozícii."; throw new Error("WebGL2"); }
+const extCBF=gl.getExtension("EXT_color_buffer_float");
+const VS=(pick)=>`#version 300 es
+layout(location=0) in vec3 p; layout(location=1) in vec4 c; layout(location=2) in uint m;
+uniform mat4 mvp; uniform float ps; uniform int mode; uniform vec2 zr; uniform int bon; uniform vec3 bmn; uniform vec3 bmx;
+out vec3 v;
+vec3 ramp(float t){ t=clamp(t,0.0,1.0); return clamp(vec3(1.5-abs(4.0*t-3.0),1.5-abs(4.0*t-2.0),1.5-abs(4.0*t-1.0)),0.0,1.0); }
+void main(){
+  if(m>=2u||(bon==1&&(any(lessThan(p,bmn))||any(greaterThan(p,bmx))))){ gl_Position=vec4(2.0,2.0,2.0,1.0); gl_PointSize=1.0; v=vec3(0.0); return; }
+  gl_Position=mvp*vec4(p,1.0); gl_PointSize=ps;
+  ${pick?"v=p;":"vec3 col=mode==0?c.rgb:ramp((p.z-zr.x)/max(zr.y-zr.x,1e-6)); if(m==1u) col=mix(col,vec3(1.0,0.82,0.1),0.75); v=col;"}
+}`;
+const FS=`#version 300 es
+precision highp float; in vec3 v; out vec4 o; void main(){ o=vec4(v,1.0); }`;
+function prog(vs,fs){ const p=gl.createProgram();
+  for(const [t,s] of [[gl.VERTEX_SHADER,vs],[gl.FRAGMENT_SHADER,fs]]){ const o=gl.createShader(t); gl.shaderSource(o,s); gl.compileShader(o);
+    if(!gl.getShaderParameter(o,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); gl.attachShader(p,o); }
+  gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u={}; for(const nm of ["mvp","ps","mode","zr","bon","bmn","bmx","col"]) u[nm]=gl.getUniformLocation(p,nm); return {p,u}; }
+const PP=prog(VS(false),FS), PK=prog(VS(true),FS);
+const PL=prog(`#version 300 es
+layout(location=0) in vec3 p; uniform mat4 mvp; void main(){ gl_Position=mvp*vec4(p,1.0); }`,
+`#version 300 es
+precision mediump float; uniform vec3 col; out vec4 o; void main(){ o=vec4(col,1.0); }`);
+const lineVao=gl.createVertexArray(), lineBuf=gl.createBuffer();
+gl.bindVertexArray(lineVao); gl.bindBuffer(gl.ARRAY_BUFFER,lineBuf); gl.bufferData(gl.ARRAY_BUFFER,24*12,gl.DYNAMIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0); gl.bindVertexArray(null);
+gl.vertexAttrib4f(1,0.75,0.75,0.75,1);
+gl.enable(gl.DEPTH_TEST);
+
+const STG=new ArrayBuffer(64*2**20);
+function upload(arr,a,len,buf){
+  const b=buf||gl.createBuffer(), bpe=arr.BYTES_PER_ELEMENT; gl.bindBuffer(gl.ARRAY_BUFFER,b);
+  if(!buf) gl.bufferData(gl.ARRAY_BUFFER,len*bpe,gl.STATIC_DRAW);
+  const step=Math.floor(STG.byteLength/bpe);
+  for(let o=0;o<len;o+=step){ const m=Math.min(step,len-o), src=arr.subarray(a+o,a+o+m);
+    if(SHARED){ const v=new arr.constructor(STG,0,m); v.set(src); gl.bufferSubData(gl.ARRAY_BUFFER,o*bpe,v); }
+    else gl.bufferSubData(gl.ARRAY_BUFFER,o*bpe,src); }
+  return b;
+}
+function makeChunk(ch){
+  ch.vao=gl.createVertexArray(); gl.bindVertexArray(ch.vao);
+  ch.bx=upload(D.X,ch.start*3,ch.cnt*3); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
+  if(D.C8){ ch.bc=upload(D.C8,ch.start*4,ch.cnt*4); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,4,gl.UNSIGNED_BYTE,true,0,0); }
+  else gl.disableVertexAttribArray(1);
+  ch.bm=upload(D.M,ch.start,ch.cnt); gl.enableVertexAttribArray(2); gl.vertexAttribIPointer(2,1,gl.UNSIGNED_BYTE,0,0);
+  gl.bindVertexArray(null);
+}
+function uploadMask(){ for(const ch of D.chunks) upload(D.M,ch.start,ch.cnt,ch.bm); }
+
+/* ============ kamera ============ */
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]], add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]], scl=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2], cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const norm=(a)=>{ const l=Math.hypot(a[0],a[1],a[2])||1; return [a[0]/l,a[1]/l,a[2]/l]; };
+const cam={t:[0,0,0],yaw:-1,pitch:0.5,dist:10,fov:50*Math.PI/180};
+const PMAX=89.5*Math.PI/180;
+function eyePos(){ const cp=Math.cos(cam.pitch); return [cam.t[0]+cam.dist*cp*Math.cos(cam.yaw),cam.t[1]+cam.dist*cp*Math.sin(cam.yaw),cam.t[2]+cam.dist*Math.sin(cam.pitch)]; }
+function basis(){ const e=eyePos(), f=norm(sub(cam.t,e)), r=norm(cross(f,[0,0,1])), u=cross(r,f); return {e,f,r,u}; }
+function persp(fy,a,n,f){ const t=1/Math.tan(fy/2), nf=1/(n-f); return [t/a,0,0,0, 0,t,0,0, 0,0,(f+n)*nf,-1, 0,0,2*f*n*nf,0]; }
+function lookAt(e,c,up){ const z=norm(sub(e,c)), x=norm(cross(up,z)), y=cross(z,x);
+  return [x[0],y[0],z[0],0, x[1],y[1],z[1],0, x[2],y[2],z[2],0, -dot(x,e),-dot(y,e),-dot(z,e),1]; }
+function mul(a,b){ const o=new Array(16); for(let c=0;c<4;c++) for(let r=0;r<4;r++){ let s=0; for(let k=0;k<4;k++) s+=a[k*4+r]*b[c*4+k]; o[c*4+r]=s; } return o; }
+function mvpNow(){ const e=eyePos(), near=Math.min(1,Math.max(0.002,cam.dist*0.002)), far=cam.dist+(D.diag||100)*2+10;
+  return mul(persp(cam.fov,cv.width/Math.max(1,cv.height),near,far),lookAt(e,cam.t,[0,0,1])); }
+function planes(m){ const r=(i)=>[m[i],m[4+i],m[8+i],m[12+i]], r0=r(0), r1=r(1), r2=r(2), r3=r(3), P=[];
+  for(const [a,s] of [[r0,1],[r0,-1],[r1,1],[r1,-1],[r2,1],[r2,-1]]) P.push([r3[0]+s*a[0],r3[1]+s*a[1],r3[2]+s*a[2],r3[3]+s*a[3]]); return P; }
+function aabbVisible(P,mn,mx){ for(const p of P){ const x=p[0]>0?mx[0]:mn[0], y=p[1]>0?mx[1]:mn[1], z=p[2]>0?mx[2]:mn[2]; if(p[0]*x+p[1]*y+p[2]*z+p[3]<0) return false; } return true; }
+function view(k){
+  if(!D.n) return; const bb=D.bb;
+  if(k==="fit"){ cam.t=[(bb[0]+bb[3])/2,(bb[1]+bb[4])/2,(bb[2]+bb[5])/2]; cam.dist=D.diag/(2*Math.tan(cam.fov/2))*1.05; cam.yaw=-Math.PI/3; cam.pitch=Math.PI/6; }
+  else if(k==="top"){ cam.yaw=-Math.PI/2; cam.pitch=PMAX; }
+  else if(k==="py"){ cam.yaw=-Math.PI/2; cam.pitch=0; }
+  else if(k==="px"){ cam.yaw=Math.PI; cam.pitch=0; }
+  req();
+}
+
+/* ============ kreslenie ============ */
+let raf=0, moving=false, idleT=0, lastDrawn=0;
+function req(mv){ if(mv){ moving=true; clearTimeout(idleT); idleT=setTimeout(()=>{ moving=false; req(); },220); } if(!raf) raf=requestAnimationFrame(()=>{ raf=0; render(moving); }); }
+function resize(){ const dpr=window.devicePixelRatio||1, v=$("view"), w=Math.max(1,Math.round(v.clientWidth*dpr)), h=Math.max(1,Math.round(v.clientHeight*dpr));
+  if(cv.width!==w||cv.height!==h){ cv.width=w; cv.height=h; }
+  if(ov.width!==v.clientWidth||ov.height!==v.clientHeight){ ov.width=v.clientWidth; ov.height=v.clientHeight; drawLassoPath(); } }
+function boxLocal(){ const b=[0,1,2,3,4,5].map((i)=>+$("b"+i).value-D.org[i%3]); return b; }
+function setUniforms(P,m){ const dpr=window.devicePixelRatio||1;
+  gl.useProgram(P.p); gl.uniformMatrix4fv(P.u.mvp,false,new Float32Array(m)); gl.uniform1f(P.u.ps,ui.ps*dpr); gl.uniform1i(P.u.mode,ui.mode);
+  gl.uniform2f(P.u.zr,D.bb[2],D.bb[5]); gl.uniform1i(P.u.bon,ui.boxClip?1:0);
+  const b=boxLocal(); gl.uniform3f(P.u.bmn,b[0],b[1],b[2]); gl.uniform3f(P.u.bmx,b[3],b[4],b[5]); }
+function drawPoints(m,f){ let drawn=0;
+  for(const ch of D.chunks){ gl.bindVertexArray(ch.vao); let rs=0, rc=0;
+    for(const c of ch.cells){ if(!c.vis) continue; const k=f>=1?c.cnt:Math.ceil(c.cnt*f); drawn+=k;
+      if(f>=1&&rc&&rs+rc===c.rel){ rc+=k; continue; }
+      if(rc) gl.drawArrays(gl.POINTS,rs,rc); rs=c.rel; rc=k; }
+    if(rc) gl.drawArrays(gl.POINTS,rs,rc); }
+  gl.bindVertexArray(null); return drawn; }
+function cullCells(m){ const P=planes(m); let V=0; for(const c of D.cells){ c.vis=aabbVisible(P,c.mn,c.mx); if(c.vis) V+=c.cnt; } return V; }
+function render(mv){
+  resize(); gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,cv.width,cv.height);
+  gl.clearColor(0.043,0.059,0.078,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  if(!D.n){ $("bar").textContent=""; return; }
+  const m=mvpNow(), V=cullCells(m), f=mv?Math.min(1,ui.budget/Math.max(1,V)):1;
+  setUniforms(PP,m); lastDrawn=drawPoints(m,f);
+  if(ui.boxShow) drawBox(m);
+  $("bar").textContent=`kreslených ${fN(lastDrawn)} bodov${f<1?` (preriedené ${f1(f*100,0)} %)`:""} · v zábere ${fN(V)} · zostáva ${fN(D.alive)} · vybraných ${fN(D.sel)}`+
+    (ui.lasso?" · LASO: ťahaj ľavým tlačidlom, Shift pridá, Ctrl uberie, Esc koniec":"");
+}
+function drawBox(m){ const b=boxLocal(), c=[[b[0],b[1],b[2]],[b[3],b[1],b[2]],[b[3],b[4],b[2]],[b[0],b[4],b[2]],[b[0],b[1],b[5]],[b[3],b[1],b[5]],[b[3],b[4],b[5]],[b[0],b[4],b[5]]];
+  const E=[0,1,1,2,2,3,3,0,4,5,5,6,6,7,7,4,0,4,1,5,2,6,3,7], v=new Float32Array(E.length*3); E.forEach((k,i)=>v.set(c[k],i*3));
+  gl.useProgram(PL.p); gl.uniformMatrix4fv(PL.u.mvp,false,new Float32Array(m)); gl.uniform3f(PL.u.col,0.91,0.70,0.23);
+  gl.bindVertexArray(lineVao); gl.bindBuffer(gl.ARRAY_BUFFER,lineBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,v); gl.drawArrays(gl.LINES,0,E.length); gl.bindVertexArray(null); }
+
+/* ============ výber bodu (dvojklik) ============ */
+let pickFbo=null, pickTex=null, pickDep=null, pickW=0, pickH=0;
+function pick(cx,cy){
+  if(!extCBF||!D.n) return null;
+  if(!pickFbo||pickW!==cv.width||pickH!==cv.height){
+    if(pickFbo){ gl.deleteFramebuffer(pickFbo); gl.deleteTexture(pickTex); gl.deleteRenderbuffer(pickDep); }
+    pickW=cv.width; pickH=cv.height; pickTex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,pickTex); gl.texStorage2D(gl.TEXTURE_2D,1,gl.RGBA32F,pickW,pickH);
+    pickDep=gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER,pickDep); gl.renderbufferStorage(gl.RENDERBUFFER,gl.DEPTH_COMPONENT24,pickW,pickH);
+    pickFbo=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,pickFbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,pickTex,0); gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,pickDep); }
+  gl.bindFramebuffer(gl.FRAMEBUFFER,pickFbo); gl.viewport(0,0,pickW,pickH); gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  const m=mvpNow(), V=cullCells(m); setUniforms(PK,m); drawPoints(m,Math.min(1,2*ui.budget/Math.max(1,V)));
+  const dpr=window.devicePixelRatio||1, px=Math.round(cx*dpr), py=Math.round(pickH-1-cy*dpr), R=Math.round(8*dpr);
+  const x0=Math.max(0,px-R), y0=Math.max(0,py-R), w=Math.min(pickW,px+R+1)-x0, h=Math.min(pickH,py+R+1)-y0;
+  let best=null;
+  if(w>0&&h>0){ const buf=new Float32Array(w*h*4); gl.readPixels(x0,y0,w,h,gl.RGBA,gl.FLOAT,buf); let bd=1e9;
+    for(let j=0;j<h;j++) for(let i=0;i<w;i++){ const o=(j*w+i)*4; if(buf[o+3]<0.5) continue; const dd=(x0+i-px)**2+(y0+j-py)**2; if(dd<bd){ bd=dd; best=[buf[o],buf[o+1],buf[o+2]]; } } }
+  gl.bindFramebuffer(gl.FRAMEBUFFER,null); req(); return best;
+}
+
+/* ============ myš a klávesnica ============ */
+let drag=null, lassoPts=null;
+ov.addEventListener("contextmenu",(e)=>e.preventDefault());
+ov.addEventListener("pointerdown",(e)=>{
+  if(!D.n) return; ov.setPointerCapture(e.pointerId);
+  if(ui.lasso&&e.button===0){ if(busy) return; lassoPts=[[e.offsetX,e.offsetY]]; drag={k:"lasso",mode:e.shiftKey?1:(e.ctrlKey||e.altKey||e.metaKey)?2:0}; return; }
+  drag={k:(e.button===0&&!e.shiftKey)?"orbit":"pan",x:e.clientX,y:e.clientY}; ov.style.cursor="grabbing";
+});
+ov.addEventListener("pointermove",(e)=>{
+  if(!drag) return;
+  if(drag.k==="lasso"){ const l=lassoPts[lassoPts.length-1]; if(Math.hypot(e.offsetX-l[0],e.offsetY-l[1])>=2){ lassoPts.push([e.offsetX,e.offsetY]); drawLassoPath(); } return; }
+  const dx=e.clientX-drag.x, dy=e.clientY-drag.y; drag.x=e.clientX; drag.y=e.clientY;
+  if(drag.k==="orbit"){ cam.yaw-=dx*0.006; cam.pitch=Math.max(-PMAX,Math.min(PMAX,cam.pitch+dy*0.006)); }
+  else { const {r,u}=basis(), wpp=2*cam.dist*Math.tan(cam.fov/2)/Math.max(1,ov.clientHeight); cam.t=add(cam.t,add(scl(r,-dx*wpp),scl(u,dy*wpp))); }
+  req(true);
+});
+ov.addEventListener("pointerup",(e)=>{
+  if(!drag) return; const d=drag; drag=null; ov.style.cursor="";
+  if(d.k==="lasso"){ const pts=lassoPts; lassoPts=null; drawLassoPath(); if(pts&&pts.length>=3) lassoApply(pts,d.mode); }
+});
+ov.addEventListener("wheel",(e)=>{
+  if(!D.n) return; e.preventDefault();
+  const k=Math.pow(1.0015,e.deltaMode===1?e.deltaY*33:e.deltaY), {e:eye,f,r,u}=basis(), W=ov.clientWidth, H=ov.clientHeight;
+  const th=Math.tan(cam.fov/2), nx=(e.offsetX/W)*2-1, ny=1-(e.offsetY/H)*2;
+  const dir=add(f,add(scl(r,nx*th*W/H),scl(u,ny*th))), P=add(eye,scl(dir,cam.dist));
+  if(k<1&&cam.dist*k<0.05){ cam.t=add(cam.t,scl(norm(dir),cam.dist*(1-k)*4)); }
+  else { cam.t=add(P,scl(sub(cam.t,P),k)); cam.dist*=k; }
+  req(true);
+},{passive:false});
+ov.addEventListener("dblclick",(e)=>{
+  if(!D.n||ui.lasso) return; const p=pick(e.offsetX,e.offsetY); if(!p) return;
+  const eye=eyePos(), d=sub(eye,p), L=Math.hypot(d[0],d[1],d[2]); if(L<1e-6) return;
+  cam.t=p; cam.dist=L; cam.pitch=Math.max(-PMAX,Math.min(PMAX,Math.asin(d[2]/L))); cam.yaw=Math.atan2(d[1],d[0]); req();
+});
+function drawLassoPath(){ octx.clearRect(0,0,ov.width,ov.height); if(!lassoPts||lassoPts.length<2) return;
+  octx.beginPath(); octx.moveTo(lassoPts[0][0],lassoPts[0][1]); for(const p of lassoPts) octx.lineTo(p[0],p[1]); octx.closePath();
+  octx.fillStyle="rgba(232,178,58,0.12)"; octx.fill(); octx.strokeStyle="#e8b23a"; octx.lineWidth=1.5; octx.setLineDash([5,4]); octx.stroke(); octx.setLineDash([]); }
+function setLasso(on){ ui.lasso=on; $("bLasso").classList.toggle("on",on); ov.classList.toggle("lasso",on); req(); }
+async function lassoApply(pts,mode){
+  if(busy) return; setBusy("Vyberám…");
+  try{
+    const W=ov.clientWidth, H=ov.clientHeight, oc=document.createElement("canvas"); oc.width=W; oc.height=H;
+    const c=oc.getContext("2d"); c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(const p of pts) c.lineTo(p[0],p[1]); c.closePath(); c.fillStyle="#fff"; c.fill();
+    const img=c.getImageData(0,0,W,H).data, bmp=new Uint8Array(alloc(W*H)); for(let i=0;i<W*H;i++) bmp[i]=img[i*4+3]>127?1:0;
+    const m=mvpNow(), box=ui.boxClip?boxLocal():null;
+    const r=await run("lasso",(i)=>({...rg(i),mvp:m,W,H,bmp,mode,box}));
+    D.sel=r.reduce((s,v)=>s+v,0); uploadMask(); updInfo(); req();
+  }finally{ setBusy(""); }
+}
+async function newOp(){ if(nextOp>255){ await run("maskOp",(i)=>({...rg(i),kind:5})); nextOp=3; undo=[]; } return nextOp++; }
+function sumCounts(r){ D.alive=r.reduce((s,v)=>s+v[0],0); D.sel=r.reduce((s,v)=>s+v[1],0); }
+async function act(k){
+  if(!D.n||busy) return;
+  if((k==="del"||k==="keep")&&!D.sel) return;
+  if(k==="undo"&&!undo.length) return;
+  setBusy("Upravujem…");
+  try{
+    if(k==="del"||k==="keep"){ const op=await newOp(); sumCounts(await run("maskOp",(i)=>({...rg(i),kind:k==="del"?0:1,op}))); undo.push(op); }
+    else if(k==="inv") sumCounts(await run("maskOp",(i)=>({...rg(i),kind:2})));
+    else if(k==="clr") sumCounts(await run("maskOp",(i)=>({...rg(i),kind:3})));
+    else if(k==="undo"){ const op=undo.pop(); sumCounts(await run("maskOp",(i)=>({...rg(i),kind:4,op}))); nextOp=op; }
+    else if(k==="boxOut"||k==="boxIn"){ const op=await newOp(), box=boxLocal();
+      const r=await run("boxOp",(i)=>({...rg(i),box,inside:k==="boxIn",op}));
+      if(r.reduce((s,v)=>s+v,0)) undo.push(op); else nextOp=op;
+      sumCounts(await run("maskOp",(i)=>({...rg(i),kind:6}))); }
+    uploadMask(); updInfo(); req();
+  }catch(err){ console.error(err); alert("Chyba: "+err.message); }
+  finally{ setBusy(""); }
+}
+window.addEventListener("keydown",(e)=>{
+  if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT") return;
+  const k=e.key.toLowerCase();
+  if((e.ctrlKey||e.metaKey)&&k==="z"){ e.preventDefault(); act("undo"); return; }
+  if(e.ctrlKey||e.metaKey||e.altKey) return;
+  if(k==="l") setLasso(!ui.lasso);
+  else if(k==="delete"){ e.preventDefault(); act("del"); }
+  else if(k==="i") act("inv");
+  else if(k==="escape"){ if(ui.lasso) setLasso(false); else act("clr"); }
+  else if(k==="f") view("fit");
+  else if(k==="t") view("top");
+});
+
+/* ============ kváder ============ */
+function boxReset(){ if(!D.n) return; const bb=D.bb;
+  for(let i=0;i<6;i++){ const v=bb[i]+D.org[i%3]; $("b"+i).value=(i<3?Math.floor(v*100)/100:Math.ceil(v*100)/100).toFixed(2); } req(); }
+for(let i=0;i<6;i++) $("b"+i).addEventListener("input",()=>req());
+$("boxShow").addEventListener("change",(e)=>{ ui.boxShow=e.target.checked; req(); });
+$("boxClip").addEventListener("change",(e)=>{ ui.boxClip=e.target.checked; req(); });
+$("bBoxReset").addEventListener("click",boxReset);
+
+/* ============ export PLY ============ */
+async function exportPly(){
+  if(!D.n||busy) return;
+  const dbl=$("expFmt").value==="d", col=D.hasC, name=D.name.replace(/\.ply$/i,"")+"_upravene.ply";
+  let fh=null;
+  if(window.showSaveFilePicker){ try{ fh=await showSaveFilePicker({suggestedName:name,types:[{description:"PLY",accept:{"application/octet-stream":[".ply"]}}]}); }
+    catch(e){ if(e.name==="AbortError") return; fh=null; } }
+  setBusy("Ukladám…");
+  try{
+    const t=dbl?"double":"float", hdr=["ply","format binary_little_endian 1.0","comment PointCloud - P. Herich",`comment zdroj: ${D.name}`,
+      `element vertex ${D.alive}`,`property ${t} x`,`property ${t} y`,`property ${t} z`].concat(col?["property uchar red","property uchar green","property uchar blue"]:[]).concat(["end_header",""]).join("\n");
+    const ws=fh?await fh.createWritable():null, parts=[], put=async(b)=>{ if(ws) await ws.write(b); else parts.push(new Blob([b])); };
+    await put(new TextEncoder().encode(hdr));
+    const B=1<<20; let written=0;
+    for(let s=0;s<D.n;s+=NW*B){
+      const jobs=[]; for(let i=0;i<NW;i++){ const a=s+i*B, b=Math.min(D.n,a+B); if(a<b) jobs.push(exec(i,"exp",{a,b,org:D.org,dbl,col})); }
+      for(const r of await Promise.all(jobs)){ if(r.n) await put(new Uint8Array(r.buf)); written+=r.n; }
+      setBusy(`Ukladám… ${f1(Math.min(100,(s+NW*B)/D.n*100),0)} %`);
+    }
+    if(ws) await ws.close();
+    else { const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob(parts)); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),60000); }
+    if(written!==D.alive) throw new Error(`zapísaných ${written}, čakalo sa ${D.alive}`);
+    $("bar").textContent=`Uložené: ${name} · ${fN(written)} bodov`;
+  }catch(err){ console.error(err); alert("Uloženie zlyhalo: "+err.message); }
+  finally{ setBusy(""); }
+}
+
+/* ============ ovládacie prvky ============ */
+$("fOpen").addEventListener("change",(e)=>{ openFile(e.target.files[0]); e.target.value=""; });
+$("bExp").addEventListener("click",exportPly);
+$("bLasso").addEventListener("click",()=>setLasso(!ui.lasso));
+document.querySelectorAll("[data-a]").forEach((b)=>b.addEventListener("click",()=>act(b.dataset.a)));
+document.querySelectorAll("[data-v]").forEach((b)=>b.addEventListener("click",()=>view(b.dataset.v)));
+$("colMode").addEventListener("change",(e)=>{ ui.mode=+e.target.value; req(); });
+$("ps").addEventListener("input",(e)=>{ ui.ps=+e.target.value; req(); });
+$("budget").addEventListener("change",(e)=>{ ui.budget=+e.target.value*1e6; req(); });
+const vw=$("view");
+vw.addEventListener("dragover",(e)=>{ e.preventDefault(); vw.classList.add("drag"); });
+vw.addEventListener("dragleave",()=>vw.classList.remove("drag"));
+vw.addEventListener("drop",(e)=>{ e.preventDefault(); vw.classList.remove("drag"); const f=e.dataTransfer.files[0]; if(f) openFile(f); });
+new ResizeObserver(()=>req()).observe(vw);
+gl.canvas.addEventListener("webglcontextlost",(e)=>{ e.preventDefault(); $("hint").style.display=""; $("hint").textContent="Grafická karta stratila kontext — obnov stránku."; });
+req();
+</script>
+</body>
+</html>
