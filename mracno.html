@@ -7,6 +7,7 @@
 <style>
 :root{--bg:#11161c;--panel:#1a2129;--panel2:#212a34;--line:#2c3743;--ink:#e2e8ef;--dim:#93a2b3;--gold:#e8b23a;--bad:#ff6b57}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:13.5px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
 #app{display:grid;grid-template-columns:300px 1fr;height:100vh}
@@ -24,6 +25,7 @@ button.on{background:#3a2f12;border-color:var(--gold);color:var(--gold)}
 button:disabled{opacity:.4;cursor:default;border-color:var(--line)}
 select,input[type=number]{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:3px 5px}
 input[type=number]{width:100%}
+input.n{width:64px}
 input[type=range]{width:120px;accent-color:var(--gold)}
 label{display:inline-flex;align-items:center;gap:5px}
 .k{color:var(--dim);font-size:12px}
@@ -43,7 +45,7 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
 <body>
 <div id="app">
 <aside>
-  <h1><a href="index.html">PointCloud</a> <span class="k">· etapa 1</span></h1>
+  <h1><a href="index.html">PointCloud</a> <span class="k">· etapa 2</span></h1>
 
   <section>
     <h2>Súbor</h2>
@@ -57,7 +59,7 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
 
   <section>
     <h2>Zobrazenie</h2>
-    <div class="row"><label class="k">farba <select id="colMode"><option value="0">RGB</option><option value="1">výška</option></select></label>
+    <div class="row"><label class="k">farba <select id="colMode"><option value="0">RGB</option><option value="1">výška</option><option value="2">strop / podlaha</option></select></label>
       <label class="k">bod <input type="range" id="ps" min="1" max="6" step="0.5" value="1.5"></label></div>
     <div class="row"><label class="k">body pri pohybe <select id="budget"><option value="5">5 mil.</option><option value="10">10 mil.</option><option value="20" selected>20 mil.</option><option value="40">40 mil.</option><option value="80">80 mil.</option></select></label></div>
     <div class="row"><button data-v="fit" title="F">Celé</button><button data-v="top" title="T">Zhora</button><button data-v="py">Pohľad +Y</button><button data-v="px">Pohľad +X</button></div>
@@ -91,8 +93,26 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
     <p class="k">Súradnice kvádra sú v súradniciach súboru.</p>
   </section>
 
+  <section>
+    <h2>Strop a podlaha</h2>
+    <div class="row"><label class="k">metóda <select id="cfAlg"><option value="0">prvé body zhora</option><option value="1">vrstvy (medzery)</option></select></label></div>
+    <div class="row"><label class="k">bunka <input type="number" id="cfCell" value="0.2" step="0.05" min="0.02" class="n"> m</label>
+      <label class="k cfA">hrúbka stropu <input type="number" id="cfT" value="0.3" step="0.05" min="0.01" class="n"> m</label></div>
+    <div class="row cfB" hidden><label class="k">medzera <input type="number" id="cfG" value="0.3" step="0.05" min="0.02" class="n"> m</label>
+      <label class="k">stena od <input type="number" id="cfW" value="0.8" step="0.1" min="0.05" class="n"> m</label></div>
+    <div class="row"><button id="bCf" class="pri" disabled>Rozdeliť</button></div>
+    <div class="row"><span class="k">zobraziť:</span><label class="k"><input type="checkbox" class="cv" data-k="1" checked> strop</label>
+      <label class="k"><input type="checkbox" class="cv" data-k="2" checked> podlaha</label><label class="k"><input type="checkbox" class="cv" data-k="0" checked> nezaradené</label></div>
+    <div class="row"><button data-c="sel1">Vybrať strop</button><button data-c="sel2">Vybrať podlahu</button></div>
+    <div class="row"><button data-c="to1">Výber → strop</button><button data-c="to2">Výber → podlaha</button></div>
+    <p class="k cfA">V každej bunke pôdorysu sa nájde najvyšší povrch (3. najvyšší bod, aby osamelé body nad stropom nevadili). Body do hrúbky stropu pod ním sú strop, všetko nižšie podlaha.</p>
+    <p class="k cfB" hidden>Body v bunke sa zoradia podľa výšky a medzery väčšie ako „medzera“ ich rozdelia na vrstvy. Zhora sa striedajú strop, podlaha, strop… (zvládne aj poschodia). Vrstva vyššia ako „stena od“ je stena a delí sa v polovici.</p>
+    <p class="k">Laso, kváder, mazanie aj uloženie pôsobia len na zobrazené body.</p>
+  </section>
+
   <section class="k">
     Ľavé tlačidlo otáča, pravé (alebo Shift + ľavé) posúva, koliesko približuje k miestu pod kurzorom, dvojklik nastaví stred otáčania na bod.
+    S lasom otáča stlačené koliesko.
     Pri pohybe sa kreslí preriedené mračno, v pokoji celé.
   </section>
 </aside>
@@ -176,7 +196,47 @@ function KERNELS(){
     for(let i=0,o=0;i<n;i++,o+=3) h[cell(X[o],X[o+1],X[o+2])]++;
     return {r:h,t:[h.buffer]}; },
   init(S,a){ S.X=a.X?new Float32Array(a.X):null; S.C32=a.C?new Uint32Array(a.C):null; S.C8=a.C?new Uint8Array(a.C):null; S.M=a.M?new Uint8Array(a.M):null;
-    if(!a.X){ S.tX=S.tC=null; } return {r:1}; },
+    S.K=a.K?new Uint8Array(a.K):null; S.P=S.CS=null; if(!a.X){ S.tX=S.tC=null; } return {r:1}; },
+  attach(S,a){ S.P=a.P?new Uint32Array(a.P):null; S.CS=a.CS?new Uint32Array(a.CS):null; return {r:1}; },
+  colHist(S,a){ const g=a.cg, X=S.X, nx=g.nx, ny=g.ny, mx=g.mn[0], my=g.mn[1], gi=g.inv, h=new Uint32Array(nx*ny);
+    for(let i=a.a,o=a.a*3;i<a.b;i++,o+=3){ let ix=((X[o]-mx)*gi)|0, iy=((X[o+1]-my)*gi)|0;
+      if(ix<0)ix=0; else if(ix>=nx)ix=nx-1; if(iy<0)iy=0; else if(iy>=ny)iy=ny-1; h[iy*nx+ix]++; }
+    return {r:h,t:[h.buffer]}; },
+  colScatter(S,a){ const g=a.cg, X=S.X, P=S.P, off=a.off, nx=g.nx, ny=g.ny, mx=g.mn[0], my=g.mn[1], gi=g.inv;
+    for(let i=a.a,o=a.a*3;i<a.b;i++,o+=3){ let ix=((X[o]-mx)*gi)|0, iy=((X[o+1]-my)*gi)|0;
+      if(ix<0)ix=0; else if(ix>=nx)ix=nx-1; if(iy<0)iy=0; else if(iy>=ny)iy=ny-1; P[off[iy*nx+ix]++]=i; }
+    return {r:1}; },
+  /* strop (1) / podlaha (2) v stĺpcoch pôdorysu; z v mm, kľúč = z·2^27 + poradie v stĺpci */
+  classify(S,a){ const X=S.X, M=S.M, K=S.K, P=S.P, CS=S.CS, alg=a.alg, z0=a.z0, T=a.t, Gp=a.g, Wl=a.w, SH=134217728;
+    let keys=S.keys||(S.keys=new Float64Array(4096)), n1=0, n2=0;
+    for(let c=a.c0;c<a.c1;c++){ const s=CS[c], e=CS[c+1]; if(e<=s) continue;
+      if(keys.length<e-s) keys=S.keys=new Float64Array(Math.max(e-s,keys.length*2));
+      let m=0; for(let j=s;j<e;j++){ const i=P[j]; if(M[i]>=2) continue; keys[m++]=Math.round((X[i*3+2]-z0)*1000)*SH+(j-s); }
+      if(!m) continue;
+      const kk=keys.subarray(0,m); kk.sort();
+      const zAt=(q)=>Math.floor(kk[q]/SH), idAt=(q)=>P[s+(kk[q]-Math.floor(kk[q]/SH)*SH)];
+      if(alg===0){                                   // prvé body zhora
+        const thr=zAt(m-Math.min(3,m))-T;
+        for(let q=m-1;q>=0;q--){ const cl=zAt(q)>=thr?1:2; K[idAt(q)]=cl; if(cl===1) n1++; else n2++; }
+      } else {                                       // vrstvy oddelené medzerami, zhora strop/podlaha/strop…
+        let p=0, q=m-1;
+        while(q>=0){ let r=q; while(r>0&&zAt(r)-zAt(r-1)<=Gp) r--;
+          const zt=zAt(q), zb=zAt(r);
+          if(zt-zb>Wl){ const mid=(zt+zb)/2, c1=(p&1)?2:1, c2=3-c1;
+            for(let u=q;u>=r;u--){ const cl=zAt(u)>=mid?c1:c2; K[idAt(u)]=cl; if(cl===1) n1++; else n2++; } p+=2; }
+          else { const cl=(p&1)?2:1; for(let u=q;u>=r;u--) K[idAt(u)]=cl; if(cl===1) n1+=q-r+1; else n2+=q-r+1; p++; }
+          q=r-1; }
+      }
+    }
+    return {r:[n1,n2]}; },
+  selClass(S,a){ const M=S.M, K=S.K, cv=a.cv, cls=a.cls, R=[0,0,0,0,0];
+    for(let i=a.a;i<a.b;i++){ let v=M[i]; if(v>=2) continue; const k=K[i];
+      if((cv>>k)&1){ const nv=k===cls?1:0; if(nv!==v){ M[i]=nv; v=nv; } }
+      R[0]++; if(v===1) R[1]++; R[2+k]++; }
+    return {r:R}; },
+  setClass(S,a){ const M=S.M, K=S.K, cls=a.cls, R=[0,0,0,0,0];
+    for(let i=a.a;i<a.b;i++){ const v=M[i]; if(v>=2) continue; if(v===1) K[i]=cls; R[0]++; if(v===1) R[1]++; R[2+K[i]]++; }
+    return {r:R}; },
   scatter(S,a){ const cell=cellOf(a.g), off=a.off, X=S.tX, n=S.tn, D=S.X, DC=S.C32;
     const tc=S.tC?new Uint32Array(S.tC.buffer,S.tC.byteOffset,n):null;
     for(let i=0,o=0;i<n;i++,o+=3){ const j=off[cell(X[o],X[o+1],X[o+2])]++, q=j*3; D[q]=X[o]; D[q+1]=X[o+1]; D[q+2]=X[o+2]; if(tc) DC[j]=tc[i]; }
@@ -187,8 +247,9 @@ function KERNELS(){
         const p=(b+i)*3, q=(b+j)*3; let t=X[p];X[p]=X[q];X[q]=t; t=X[p+1];X[p+1]=X[q+1];X[q+1]=t; t=X[p+2];X[p+2]=X[q+2];X[q+2]=t;
         if(C){ t=C[b+i]; C[b+i]=C[b+j]; C[b+j]=t; } } }
     return {r:1}; },
-  lasso(S,a){ const X=S.X, M=S.M, m=a.mvp, W=a.W, H=a.H, B=a.bmp, mode=a.mode, bx=a.box; let sel=0;
+  lasso(S,a){ const X=S.X, M=S.M, K=S.K, cv=a.cv, m=a.mvp, W=a.W, H=a.H, B=a.bmp, mode=a.mode, bx=a.box; let sel=0;
     for(let i=a.a;i<a.b;i++){ const v=M[i]; if(v>=2) continue;
+      if(!((cv>>K[i])&1)){ if(v===1) sel++; continue; }
       const o=i*3, x=X[o], y=X[o+1], z=X[o+2]; let ins=false;
       if(!bx||(x>=bx[0]&&y>=bx[1]&&z>=bx[2]&&x<=bx[3]&&y<=bx[4]&&z<=bx[5])){
         const w=m[3]*x+m[7]*y+m[11]*z+m[15];
@@ -197,26 +258,26 @@ function KERNELS(){
       let nv=v; if(mode===0) nv=ins?1:0; else if(mode===1){ if(ins) nv=1; } else if(ins) nv=0;
       if(nv!==v) M[i]=nv; if(nv===1) sel++; }
     return {r:sel}; },
-  boxOp(S,a){ const X=S.X, M=S.M, b=a.box, ins=a.inside, op=a.op; let k=0;
-    for(let i=a.a;i<a.b;i++){ if(M[i]>=2) continue; const o=i*3, x=X[o], y=X[o+1], z=X[o+2];
+  boxOp(S,a){ const X=S.X, M=S.M, K=S.K, cv=a.cv, b=a.box, ins=a.inside, op=a.op; let k=0;
+    for(let i=a.a;i<a.b;i++){ if(M[i]>=2||!((cv>>K[i])&1)) continue; const o=i*3, x=X[o], y=X[o+1], z=X[o+2];
       const inb=x>=b[0]&&y>=b[1]&&z>=b[2]&&x<=b[3]&&y<=b[4]&&z<=b[5]; if(inb===ins){ M[i]=op; k++; } }
     return {r:k}; },
-  maskOp(S,a){ const M=S.M, kd=a.kind, op=a.op; let alive=0, sel=0;
-    for(let i=a.a;i<a.b;i++){ const v0=M[i]; let v=v0;
+  maskOp(S,a){ const M=S.M, K=S.K, kd=a.kind, op=a.op, cv=a.cv===undefined?7:a.cv, R=[0,0,0,0,0];
+    for(let i=a.a;i<a.b;i++){ const v0=M[i]; let v=v0; const vis=(cv>>K[i])&1;
       switch(kd){
-        case 0: if(v===1) v=op; break;                      // zmazať vybrané
-        case 1: if(v===0) v=op; else if(v===1) v=0; break;  // ponechať vybrané
-        case 2: if(v<2) v=1-v; break;                       // obrátiť výber
+        case 0: if(v===1&&vis) v=op; break;                          // zmazať vybrané
+        case 1: if(vis){ if(v===0) v=op; else if(v===1) v=0; } break; // ponechať vybrané
+        case 2: if(v<2&&vis) v=1-v; break;                           // obrátiť výber
         case 3: if(v===1) v=0; break;                       // zrušiť výber
         case 4: if(v===op) v=0; break;                      // späť
         case 5: if(v>2) v=2; break;                         // zlúčiť históriu
       }
-      if(v!==v0) M[i]=v; if(v<2){ alive++; if(v===1) sel++; } }
-    return {r:[alive,sel]}; },
-  exp(S,a){ const X=S.X, M=S.M, C=S.C8, o3=a.org, dbl=a.dbl, col=a.col&&!!C; let n=0;
-    for(let i=a.a;i<a.b;i++) if(M[i]<2) n++;
+      if(v!==v0) M[i]=v; if(v<2){ R[0]++; if(v===1) R[1]++; R[2+K[i]]++; } }
+    return {r:R}; },
+  exp(S,a){ const X=S.X, M=S.M, K=S.K, cv=a.cv, C=S.C8, o3=a.org, dbl=a.dbl, col=a.col&&!!C; let n=0;
+    for(let i=a.a;i<a.b;i++) if(M[i]<2&&((cv>>K[i])&1)) n++;
     const rs=(dbl?24:12)+(col?3:0), buf=new ArrayBuffer(n*rs), dv=new DataView(buf); let p=0;
-    for(let i=a.a;i<a.b;i++){ if(M[i]>=2) continue; const o=i*3;
+    for(let i=a.a;i<a.b;i++){ if(M[i]>=2||!((cv>>K[i])&1)) continue; const o=i*3;
       if(dbl){ dv.setFloat64(p,X[o]+o3[0],true); dv.setFloat64(p+8,X[o+1]+o3[1],true); dv.setFloat64(p+16,X[o+2]+o3[2],true); p+=24; }
       else { dv.setFloat32(p,X[o]+o3[0],true); dv.setFloat32(p+4,X[o+1]+o3[1],true); dv.setFloat32(p+8,X[o+2]+o3[2],true); p+=12; }
       if(col){ const c=i*4; dv.setUint8(p,C[c]); dv.setUint8(p+1,C[c+1]); dv.setUint8(p+2,C[c+2]); p+=3; } }
@@ -290,13 +351,14 @@ function loopSrc(H){
 
 /* ============ stav ============ */
 let D={n:0}, busy=false, nextOp=3, undo=[];
-const ui={mode:0,ps:1.5,budget:20e6,lasso:false,boxShow:true,boxClip:false};
+const ui={mode:0,ps:1.5,budget:20e6,lasso:false,boxShow:true,boxClip:false,cv:7};
 function setBusy(t){ busy=!!t; $("busy").textContent=t||""; $("busy").style.display=t?"block":"none"; }
 const tick=()=>new Promise((r)=>setTimeout(r,0));
 
 /* ============ načítanie ============ */
 function freeData(){
-  if(D.chunks) for(const ch of D.chunks){ gl.deleteBuffer(ch.bx); if(ch.bc) gl.deleteBuffer(ch.bc); gl.deleteBuffer(ch.bm); gl.deleteVertexArray(ch.vao); }
+  if(D.chunks) for(const ch of D.chunks){ gl.deleteBuffer(ch.bx); if(ch.bc) gl.deleteBuffer(ch.bc); gl.deleteBuffer(ch.bm); gl.deleteBuffer(ch.bk); gl.deleteVertexArray(ch.vao); }
+  $("bCf").disabled=true;
   if(pool) pool.close(); pool=null; MS=[]; D={n:0}; nextOp=3; undo=[];
 }
 async function openFile(file){
@@ -331,13 +393,13 @@ async function openFile(file){
     const cnt=new Uint32Array(g.nc); for(const h of hs) for(let c=0;c<g.nc;c++) cnt[c]+=h[c];
     const cst=new Float64Array(g.nc); for(let c=1;c<g.nc;c++) cst[c]=cst[c-1]+cnt[c-1];
     const runOff=Float64Array.from(cst), offs=hs.map((h)=>{ const o=new Uint32Array(g.nc); for(let c=0;c<g.nc;c++){ o[c]=runOff[c]; runOff[c]+=h[c]; } return o; });
-    const X=new Float32Array(alloc(n*12)), C32=hasC?new Uint32Array(alloc(n*4)):null, M=new Uint8Array(alloc(n));
-    await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"init",{X:X.buffer,C:C32?C32.buffer:null,M:M.buffer})));
+    const X=new Float32Array(alloc(n*12)), C32=hasC?new Uint32Array(alloc(n*4)):null, M=new Uint8Array(alloc(n)), Kc=new Uint8Array(alloc(n));
+    await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"init",{X:X.buffer,C:C32?C32.buffer:null,M:M.buffer,K:Kc.buffer})));
     await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"scatter",{g,off:offs[i]},[offs[i].buffer])));
     const cells=[];
     for(let c=0;c<g.nc;c++){ if(!cnt[c]) continue; const ix_=c%nx, iy=Math.floor(c/nx)%ny, iz=Math.floor(c/(nx*ny));
       const mn=[g.mn[0]+ix_*s,g.mn[1]+iy*s,g.mn[2]+iz*s]; cells.push({start:cst[c],cnt:cnt[c],mn,mx:[mn[0]+s,mn[1]+s,mn[2]+s],rel:0,vis:false}); }
-    D={file,name:file.name,n,org,bb,hasC,X,C32,C8:C32?new Uint8Array(C32.buffer):null,M,cells,g,alive:n,sel:0,
+    D={file,name:file.name,n,org,bb,hasC,X,C32,C8:C32?new Uint8Array(C32.buffer):null,M,K:Kc,cls:[n,0,0],cols:null,cfText:"",cells,g,alive:n,sel:0,
        diag:Math.hypot(d[0],d[1],d[2]),fmt:H.fmt,stride:H.V.stride};
     const grp=Array.from({length:NW},()=>[]); let gi=0, acc=0;
     for(const c of cells){ grp[gi].push(c.start,c.cnt); acc+=c.cnt; if(gi<NW-1&&acc>=n*(gi+1)/NW) gi++; }
@@ -356,19 +418,20 @@ async function openFile(file){
     $("colMode").value=hasC?"0":"1"; ui.mode=+$("colMode").value; $("colMode").options[0].disabled=!hasC;
     $("expFmt").value=org.some((v)=>Math.abs(v)>=1e4)?"d":"f";
     boxReset(); view("fit");
-    const mem=n*(12+(hasC?4:0)+1);
+    const mem=n*(12+(hasC?4:0)+2);
     D.infoText=[`${file.name}`,`${H.fmt} · ${f1(file.size/G,2)} GiB · ${fN(n)} bodov · farba ${hasC?"áno":"nie"}`,
       `lokálny počiatok: ${org.join(" ")}`,`rozmer: ${f1(d[0],2)} × ${f1(d[1],2)} × ${f1(d[2],2)} m`,
       `blokov: ${fN(cells.length)} (hrana ${f1(s,2)} m) · kúskov na karte: ${D.chunks.length}`,
       `čítanie ${f1((T[1]-T[0])/1000,2)} s · triedenie ${f1((T[2]-T[1])/1000,2)} s · karta ${f1((T[3]-T[2])/1000,2)} s`,
       `pamäť: ${f1(mem/G,2)} GiB · ${SHARED?NW+" vlákien":"bez izolácie — úpravy bežia v hlavnom vlákne (pomalšie)"}`].join("\n");
-    $("hint").style.display="none"; $("bExp").disabled=false; updInfo(); req();
+    $("hint").style.display="none"; $("bExp").disabled=false; $("bCf").disabled=false; updInfo(); req();
   }catch(err){
     console.error(err); freeData(); $("info").textContent="CHYBA: "+err.message; $("hint").style.display="";
   }finally{ setBusy(""); }
 }
 function updInfo(){ if(!D.n){ $("info").textContent="Žiadne mračno."; return; }
-  $("info").textContent=D.infoText+`\nzostáva: ${fN(D.alive)} · zmazaných: ${fN(D.n-D.alive)} · vybraných: ${fN(D.sel)}${undo.length?` · krokov späť: ${undo.length}`:""}`; }
+  $("info").textContent=D.infoText+(D.cfText?"\n"+D.cfText:"")+`\nzostáva: ${fN(D.alive)} · zmazaných: ${fN(D.n-D.alive)} · vybraných: ${fN(D.sel)}${undo.length?` · krokov späť: ${undo.length}`:""}`+
+    (D.cls[1]+D.cls[2]?`\nstrop: ${fN(D.cls[1])} · podlaha: ${fN(D.cls[2])} · nezaradené: ${fN(D.cls[0])}`:""); }
 
 /* ============ WebGL ============ */
 const cv=$("gl"), ov=$("ov"), octx=ov.getContext("2d");
@@ -376,14 +439,14 @@ const gl=cv.getContext("webgl2",{antialias:false,powerPreference:"high-performan
 if(!gl){ $("hint").textContent="WebGL2 nie je k dispozícii."; throw new Error("WebGL2"); }
 const extCBF=gl.getExtension("EXT_color_buffer_float");
 const VS=(pick)=>`#version 300 es
-layout(location=0) in vec3 p; layout(location=1) in vec4 c; layout(location=2) in uint m;
-uniform mat4 mvp; uniform float ps; uniform int mode; uniform vec2 zr; uniform int bon; uniform vec3 bmn; uniform vec3 bmx;
+layout(location=0) in vec3 p; layout(location=1) in vec4 c; layout(location=2) in uint m; layout(location=3) in uint k;
+uniform mat4 mvp; uniform float ps; uniform int mode; uniform vec2 zr; uniform int bon; uniform vec3 bmn; uniform vec3 bmx; uniform int cv;
 out vec3 v;
 vec3 ramp(float t){ t=clamp(t,0.0,1.0); return clamp(vec3(1.5-abs(4.0*t-3.0),1.5-abs(4.0*t-2.0),1.5-abs(4.0*t-1.0)),0.0,1.0); }
 void main(){
-  if(m>=2u||(bon==1&&(any(lessThan(p,bmn))||any(greaterThan(p,bmx))))){ gl_Position=vec4(2.0,2.0,2.0,1.0); gl_PointSize=1.0; v=vec3(0.0); return; }
+  if(m>=2u||((cv>>int(k))&1)==0||(bon==1&&(any(lessThan(p,bmn))||any(greaterThan(p,bmx))))){ gl_Position=vec4(2.0,2.0,2.0,1.0); gl_PointSize=1.0; v=vec3(0.0); return; }
   gl_Position=mvp*vec4(p,1.0); gl_PointSize=ps;
-  ${pick?"v=p;":"vec3 col=mode==0?c.rgb:ramp((p.z-zr.x)/max(zr.y-zr.x,1e-6)); if(m==1u) col=mix(col,vec3(1.0,0.82,0.1),0.75); v=col;"}
+  ${pick?"v=p;":"vec3 cc=k==1u?vec3(0.32,0.62,1.0):k==2u?vec3(0.95,0.63,0.22):vec3(0.62); vec3 col=mode==0?c.rgb:mode==1?ramp((p.z-zr.x)/max(zr.y-zr.x,1e-6)):cc*(0.35+0.65*dot(c.rgb,vec3(0.3,0.59,0.11))); if(m==1u) col=mix(col,vec3(1.0,0.82,0.1),0.75); v=col;"}
 }`;
 const FS=`#version 300 es
 precision highp float; in vec3 v; out vec4 o; void main(){ o=vec4(v,1.0); }`;
@@ -391,7 +454,7 @@ function prog(vs,fs){ const p=gl.createProgram();
   for(const [t,s] of [[gl.VERTEX_SHADER,vs],[gl.FRAGMENT_SHADER,fs]]){ const o=gl.createShader(t); gl.shaderSource(o,s); gl.compileShader(o);
     if(!gl.getShaderParameter(o,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); gl.attachShader(p,o); }
   gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
-  const u={}; for(const nm of ["mvp","ps","mode","zr","bon","bmn","bmx","col"]) u[nm]=gl.getUniformLocation(p,nm); return {p,u}; }
+  const u={}; for(const nm of ["mvp","ps","mode","zr","bon","bmn","bmx","col","cv"]) u[nm]=gl.getUniformLocation(p,nm); return {p,u}; }
 const PP=prog(VS(false),FS), PK=prog(VS(true),FS);
 const PL=prog(`#version 300 es
 layout(location=0) in vec3 p; uniform mat4 mvp; void main(){ gl_Position=mvp*vec4(p,1.0); }`,
@@ -419,9 +482,11 @@ function makeChunk(ch){
   if(D.C8){ ch.bc=upload(D.C8,ch.start*4,ch.cnt*4); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,4,gl.UNSIGNED_BYTE,true,0,0); }
   else gl.disableVertexAttribArray(1);
   ch.bm=upload(D.M,ch.start,ch.cnt); gl.enableVertexAttribArray(2); gl.vertexAttribIPointer(2,1,gl.UNSIGNED_BYTE,0,0);
+  ch.bk=upload(D.K,ch.start,ch.cnt); gl.enableVertexAttribArray(3); gl.vertexAttribIPointer(3,1,gl.UNSIGNED_BYTE,0,0);
   gl.bindVertexArray(null);
 }
 function uploadMask(){ for(const ch of D.chunks) upload(D.M,ch.start,ch.cnt,ch.bm); }
+function uploadClass(){ for(const ch of D.chunks) upload(D.K,ch.start,ch.cnt,ch.bk); }
 
 /* ============ kamera ============ */
 const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]], add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]], scl=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
@@ -450,15 +515,15 @@ function view(k){
 }
 
 /* ============ kreslenie ============ */
-let raf=0, moving=false, idleT=0, lastDrawn=0;
-function req(mv){ if(mv){ moving=true; clearTimeout(idleT); idleT=setTimeout(()=>{ moving=false; req(); },220); } if(!raf) raf=requestAnimationFrame(()=>{ raf=0; render(moving); }); }
+let raf=0, moving=false, idleT=0, lastDrawn=0, centerUntil=0, centerT=0, lastM=null;
+function req(mv){ if(mv){ moving=true; centerUntil=Math.max(centerUntil,performance.now()+700); clearTimeout(idleT); idleT=setTimeout(()=>{ moving=false; req(); },220); } if(!raf) raf=requestAnimationFrame(()=>{ raf=0; render(moving); }); }
 function resize(){ const dpr=window.devicePixelRatio||1, v=$("view"), w=Math.max(1,Math.round(v.clientWidth*dpr)), h=Math.max(1,Math.round(v.clientHeight*dpr));
   if(cv.width!==w||cv.height!==h){ cv.width=w; cv.height=h; }
   if(ov.width!==v.clientWidth||ov.height!==v.clientHeight){ ov.width=v.clientWidth; ov.height=v.clientHeight; drawLassoPath(); } }
 function boxLocal(){ const b=[0,1,2,3,4,5].map((i)=>+$("b"+i).value-D.org[i%3]); return b; }
 function setUniforms(P,m){ const dpr=window.devicePixelRatio||1;
   gl.useProgram(P.p); gl.uniformMatrix4fv(P.u.mvp,false,new Float32Array(m)); gl.uniform1f(P.u.ps,ui.ps*dpr); gl.uniform1i(P.u.mode,ui.mode);
-  gl.uniform2f(P.u.zr,D.bb[2],D.bb[5]); gl.uniform1i(P.u.bon,ui.boxClip?1:0);
+  gl.uniform2f(P.u.zr,D.bb[2],D.bb[5]); gl.uniform1i(P.u.bon,ui.boxClip?1:0); gl.uniform1i(P.u.cv,ui.cv);
   const b=boxLocal(); gl.uniform3f(P.u.bmn,b[0],b[1],b[2]); gl.uniform3f(P.u.bmx,b[3],b[4],b[5]); }
 function drawPoints(m,f){ let drawn=0;
   for(const ch of D.chunks){ gl.bindVertexArray(ch.vao); let rs=0, rc=0;
@@ -471,17 +536,32 @@ function cullCells(m){ const P=planes(m); let V=0; for(const c of D.cells){ c.vi
 function render(mv){
   resize(); gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,cv.width,cv.height);
   gl.clearColor(0.043,0.059,0.078,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-  if(!D.n){ $("bar").textContent=""; return; }
+  if(!D.n){ $("bar").textContent=""; drawOverlay(null); return; }
   const m=mvpNow(), V=cullCells(m), f=mv?Math.min(1,ui.budget/Math.max(1,V)):1;
   setUniforms(PP,m); lastDrawn=drawPoints(m,f);
   if(ui.boxShow) drawBox(m);
+  const now=performance.now(); lastM=m; drawOverlay(m); if(now<centerUntil){ clearTimeout(centerT); centerT=setTimeout(()=>req(),centerUntil-now+30); }
   $("bar").textContent=`kreslených ${fN(lastDrawn)} bodov${f<1?` (preriedené ${f1(f*100,0)} %)`:""} · v zábere ${fN(V)} · zostáva ${fN(D.alive)} · vybraných ${fN(D.sel)}`+
-    (ui.lasso?" · LASO: ťahaj ľavým tlačidlom, Shift pridá, Ctrl uberie, Esc koniec":"");
+    (performance.now()<flashUntil?" · "+flashMsg:"")+(ui.lasso?" · LASO: ťahaj ľavým tlačidlom (Shift pridá, Ctrl uberie), stlačené koliesko otáča, Esc koniec":"");
 }
 function drawBox(m){ const b=boxLocal(), c=[[b[0],b[1],b[2]],[b[3],b[1],b[2]],[b[3],b[4],b[2]],[b[0],b[4],b[2]],[b[0],b[1],b[5]],[b[3],b[1],b[5]],[b[3],b[4],b[5]],[b[0],b[4],b[5]]];
   const E=[0,1,1,2,2,3,3,0,4,5,5,6,6,7,7,4,0,4,1,5,2,6,3,7], v=new Float32Array(E.length*3); E.forEach((k,i)=>v.set(c[k],i*3));
   gl.useProgram(PL.p); gl.uniformMatrix4fv(PL.u.mvp,false,new Float32Array(m)); gl.uniform3f(PL.u.col,0.91,0.70,0.23);
   gl.bindVertexArray(lineVao); gl.bindBuffer(gl.ARRAY_BUFFER,lineBuf); gl.bufferSubData(gl.ARRAY_BUFFER,0,v); gl.drawArrays(gl.LINES,0,E.length); gl.bindVertexArray(null); }
+
+let flashMsg="", flashUntil=0;
+function flash(t){ flashMsg=t; flashUntil=performance.now()+2500; req(); setTimeout(()=>req(),2600); }
+function drawOverlay(m){
+  octx.clearRect(0,0,ov.width,ov.height);
+  if(m&&performance.now()<centerUntil){ const t=cam.t, w=m[3]*t[0]+m[7]*t[1]+m[11]*t[2]+m[15];
+    if(w>1e-9){ const x=((m[0]*t[0]+m[4]*t[1]+m[8]*t[2]+m[12])/w+1)/2*ov.width, y=(1-(m[1]*t[0]+m[5]*t[1]+m[9]*t[2]+m[13])/w)/2*ov.height;
+      octx.lineWidth=4; octx.strokeStyle="rgba(0,0,0,0.6)"; centerGlyph(x,y); octx.lineWidth=1.8; octx.strokeStyle="#e8b23a"; centerGlyph(x,y); } }
+  if(lassoPts&&lassoPts.length>=2){
+    octx.beginPath(); octx.moveTo(lassoPts[0][0],lassoPts[0][1]); for(const p of lassoPts) octx.lineTo(p[0],p[1]); octx.closePath();
+    octx.fillStyle="rgba(232,178,58,0.12)"; octx.fill(); octx.strokeStyle="#e8b23a"; octx.lineWidth=1.5; octx.setLineDash([5,4]); octx.stroke(); octx.setLineDash([]); }
+}
+function centerGlyph(x,y){ octx.beginPath(); octx.arc(x,y,9,0,Math.PI*2); octx.moveTo(x-16,y); octx.lineTo(x-4,y); octx.moveTo(x+4,y); octx.lineTo(x+16,y);
+  octx.moveTo(x,y-16); octx.lineTo(x,y-4); octx.moveTo(x,y+4); octx.lineTo(x,y+16); octx.stroke(); }
 
 /* ============ výber bodu (dvojklik) ============ */
 let pickFbo=null, pickTex=null, pickDep=null, pickW=0, pickH=0;
@@ -495,7 +575,7 @@ function pick(cx,cy){
     gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,pickTex,0); gl.framebufferRenderbuffer(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.RENDERBUFFER,pickDep); }
   gl.bindFramebuffer(gl.FRAMEBUFFER,pickFbo); gl.viewport(0,0,pickW,pickH); gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   const m=mvpNow(), V=cullCells(m); setUniforms(PK,m); drawPoints(m,Math.min(1,2*ui.budget/Math.max(1,V)));
-  const dpr=window.devicePixelRatio||1, px=Math.round(cx*dpr), py=Math.round(pickH-1-cy*dpr), R=Math.round(8*dpr);
+  const dpr=window.devicePixelRatio||1, px=Math.round(cx*dpr), py=Math.round(pickH-1-cy*dpr), R=Math.round(14*dpr);
   const x0=Math.max(0,px-R), y0=Math.max(0,py-R), w=Math.min(pickW,px+R+1)-x0, h=Math.min(pickH,py+R+1)-y0;
   let best=null;
   if(w>0&&h>0){ const buf=new Float32Array(w*h*4); gl.readPixels(x0,y0,w,h,gl.RGBA,gl.FLOAT,buf); let bd=1e9;
@@ -506,10 +586,13 @@ function pick(cx,cy){
 /* ============ myš a klávesnica ============ */
 let drag=null, lassoPts=null;
 ov.addEventListener("contextmenu",(e)=>e.preventDefault());
+ov.addEventListener("mousedown",(e)=>{ if(e.button===1) e.preventDefault(); });
+ov.addEventListener("auxclick",(e)=>{ if(e.button===1) e.preventDefault(); });
 ov.addEventListener("pointerdown",(e)=>{
   if(!D.n) return; ov.setPointerCapture(e.pointerId);
   if(ui.lasso&&e.button===0){ if(busy) return; lassoPts=[[e.offsetX,e.offsetY]]; drag={k:"lasso",mode:e.shiftKey?1:(e.ctrlKey||e.altKey||e.metaKey)?2:0}; return; }
-  drag={k:(e.button===0&&!e.shiftKey)?"orbit":"pan",x:e.clientX,y:e.clientY}; ov.style.cursor="grabbing";
+  if(e.button===1) e.preventDefault();
+  drag={k:((e.button===0&&!e.shiftKey)||(e.button===1&&ui.lasso))?"orbit":"pan",x:e.clientX,y:e.clientY}; ov.style.cursor="grabbing";
 });
 ov.addEventListener("pointermove",(e)=>{
   if(!drag) return;
@@ -533,13 +616,13 @@ ov.addEventListener("wheel",(e)=>{
   req(true);
 },{passive:false});
 ov.addEventListener("dblclick",(e)=>{
-  if(!D.n||ui.lasso) return; const p=pick(e.offsetX,e.offsetY); if(!p) return;
+  if(!D.n||ui.lasso) return; const p=pick(e.offsetX,e.offsetY);
+  if(!p){ flash(extCBF?"pod kurzorom nie je bod":"výber bodu nie je v tomto prehliadači k dispozícii"); return; }
+  centerUntil=performance.now()+1500;
   const eye=eyePos(), d=sub(eye,p), L=Math.hypot(d[0],d[1],d[2]); if(L<1e-6) return;
   cam.t=p; cam.dist=L; cam.pitch=Math.max(-PMAX,Math.min(PMAX,Math.asin(d[2]/L))); cam.yaw=Math.atan2(d[1],d[0]); req();
 });
-function drawLassoPath(){ octx.clearRect(0,0,ov.width,ov.height); if(!lassoPts||lassoPts.length<2) return;
-  octx.beginPath(); octx.moveTo(lassoPts[0][0],lassoPts[0][1]); for(const p of lassoPts) octx.lineTo(p[0],p[1]); octx.closePath();
-  octx.fillStyle="rgba(232,178,58,0.12)"; octx.fill(); octx.strokeStyle="#e8b23a"; octx.lineWidth=1.5; octx.setLineDash([5,4]); octx.stroke(); octx.setLineDash([]); }
+function drawLassoPath(){ drawOverlay(lastM); }
 function setLasso(on){ ui.lasso=on; $("bLasso").classList.toggle("on",on); ov.classList.toggle("lasso",on); req(); }
 async function lassoApply(pts,mode){
   if(busy) return; setBusy("Vyberám…");
@@ -548,24 +631,24 @@ async function lassoApply(pts,mode){
     const c=oc.getContext("2d"); c.beginPath(); c.moveTo(pts[0][0],pts[0][1]); for(const p of pts) c.lineTo(p[0],p[1]); c.closePath(); c.fillStyle="#fff"; c.fill();
     const img=c.getImageData(0,0,W,H).data, bmp=new Uint8Array(alloc(W*H)); for(let i=0;i<W*H;i++) bmp[i]=img[i*4+3]>127?1:0;
     const m=mvpNow(), box=ui.boxClip?boxLocal():null;
-    const r=await run("lasso",(i)=>({...rg(i),mvp:m,W,H,bmp,mode,box}));
+    const r=await run("lasso",(i)=>({...rg(i),mvp:m,W,H,bmp,mode,box,cv:ui.cv}));
     D.sel=r.reduce((s,v)=>s+v,0); uploadMask(); updInfo(); req();
   }finally{ setBusy(""); }
 }
 async function newOp(){ if(nextOp>255){ await run("maskOp",(i)=>({...rg(i),kind:5})); nextOp=3; undo=[]; } return nextOp++; }
-function sumCounts(r){ D.alive=r.reduce((s,v)=>s+v[0],0); D.sel=r.reduce((s,v)=>s+v[1],0); }
+function sumCounts(r){ D.alive=r.reduce((s,v)=>s+v[0],0); D.sel=r.reduce((s,v)=>s+v[1],0); D.cls=[0,1,2].map((k)=>r.reduce((s,v)=>s+v[2+k],0)); }
 async function act(k){
   if(!D.n||busy) return;
   if((k==="del"||k==="keep")&&!D.sel) return;
   if(k==="undo"&&!undo.length) return;
   setBusy("Upravujem…");
   try{
-    if(k==="del"||k==="keep"){ const op=await newOp(); sumCounts(await run("maskOp",(i)=>({...rg(i),kind:k==="del"?0:1,op}))); undo.push(op); }
-    else if(k==="inv") sumCounts(await run("maskOp",(i)=>({...rg(i),kind:2})));
+    if(k==="del"||k==="keep"){ const op=await newOp(); sumCounts(await run("maskOp",(i)=>({...rg(i),kind:k==="del"?0:1,op,cv:ui.cv}))); undo.push(op); }
+    else if(k==="inv") sumCounts(await run("maskOp",(i)=>({...rg(i),kind:2,cv:ui.cv})));
     else if(k==="clr") sumCounts(await run("maskOp",(i)=>({...rg(i),kind:3})));
     else if(k==="undo"){ const op=undo.pop(); sumCounts(await run("maskOp",(i)=>({...rg(i),kind:4,op}))); nextOp=op; }
     else if(k==="boxOut"||k==="boxIn"){ const op=await newOp(), box=boxLocal();
-      const r=await run("boxOp",(i)=>({...rg(i),box,inside:k==="boxIn",op}));
+      const r=await run("boxOp",(i)=>({...rg(i),box,inside:k==="boxIn",op,cv:ui.cv}));
       if(r.reduce((s,v)=>s+v,0)) undo.push(op); else nextOp=op;
       sumCounts(await run("maskOp",(i)=>({...rg(i),kind:6}))); }
     uploadMask(); updInfo(); req();
@@ -593,6 +676,53 @@ $("boxShow").addEventListener("change",(e)=>{ ui.boxShow=e.target.checked; req()
 $("boxClip").addEventListener("change",(e)=>{ ui.boxClip=e.target.checked; req(); });
 $("bBoxReset").addEventListener("click",boxReset);
 
+/* ============ strop a podlaha ============ */
+function lowerBound(A,v,lo,hi){ while(lo<hi){ const m=(lo+hi)>>>1; if(A[m]<v) lo=m+1; else hi=m; } return lo; }
+async function classify(){
+  if(!D.n||busy) return;
+  const cell=Math.max(0.02,+$("cfCell").value||0.2), alg=+$("cfAlg").value, bb=D.bb;
+  const nx=Math.max(1,Math.ceil((bb[3]-bb[0])/cell)), ny=Math.max(1,Math.ceil((bb[4]-bb[1])/cell)), nc=nx*ny;
+  if(nc>12e6){ alert(`Bunka ${cell} m je pre tento rozmer príliš malá (${fN(nc)} stĺpcov, najviac 12 mil.). Zväčši ju.`); return; }
+  setBusy("Strop a podlaha: stĺpce…"); const t0=performance.now();
+  try{
+    if(!D.cols||D.cols.cell!==cell){
+      D.cols=null; await run("attach",()=>({}));
+      const cg={mn:[bb[0],bb[1]],inv:1/cell,nx,ny}, hs=await run("colHist",(i)=>({...rg(i),cg}));
+      const CS=new Uint32Array(alloc((nc+1)*4)), offs=hs.map(()=>new Uint32Array(nc)); let acc=0;
+      for(let c=0;c<nc;c++){ CS[c]=acc; for(let w=0;w<hs.length;w++){ offs[w][c]=acc; acc+=hs[w][c]; } }
+      CS[nc]=acc;
+      const P=new Uint32Array(alloc(D.n*4));
+      await run("attach",()=>({P:P.buffer,CS:CS.buffer}));
+      await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"colScatter",{...rg(i),cg,off:offs[i]},[offs[i].buffer])));
+      D.cols={cell,nx,ny,nc,CS,P};
+    }
+    const t1=performance.now(); setBusy("Strop a podlaha: triedim…");
+    const CS=D.cols.CS, R=[]; let c0=0;
+    for(let w=0;w<NW;w++){ const c1=w===NW-1?nc:Math.max(c0,Math.min(nc,lowerBound(CS,D.n*(w+1)/NW,c0,nc))); R.push([c0,c1]); c0=c1; }
+    const prm={alg,z0:Math.floor(bb[2])-1,t:Math.round(+$("cfT").value*1000),g:Math.round(+$("cfG").value*1000),w:Math.round(+$("cfW").value*1000)};
+    await run("classify",(i)=>({c0:R[i][0],c1:R[i][1],...prm}));
+    sumCounts(await run("maskOp",(i)=>({...rg(i),kind:6})));
+    uploadClass(); ui.mode=2; $("colMode").value="2";
+    const t2=performance.now();
+    D.cfText=`strop/podlaha: ${alg?"vrstvy":"prvé body zhora"}, bunka ${f1(cell,2)} m · stĺpce ${f1((t1-t0)/1000,2)} s · triedenie ${f1((t2-t1)/1000,2)} s`;
+    updInfo(); req();
+  }catch(err){ console.error(err); alert("Chyba: "+err.message); }
+  finally{ setBusy(""); }
+}
+async function classAct(k){
+  if(!D.n||busy) return; setBusy("Upravujem…");
+  try{
+    if(k==="sel1"||k==="sel2") sumCounts(await run("selClass",(i)=>({...rg(i),cls:k==="sel1"?1:2,cv:ui.cv})));
+    else { if(!D.sel) return; sumCounts(await run("setClass",(i)=>({...rg(i),cls:k==="to1"?1:2}))); uploadClass(); }
+    uploadMask(); updInfo(); req();
+  }catch(err){ console.error(err); alert("Chyba: "+err.message); }
+  finally{ setBusy(""); }
+}
+$("bCf").addEventListener("click",classify);
+document.querySelectorAll("[data-c]").forEach((b)=>b.addEventListener("click",()=>classAct(b.dataset.c)));
+document.querySelectorAll(".cv").forEach((c)=>c.addEventListener("change",()=>{ ui.cv=0; document.querySelectorAll(".cv").forEach((x)=>{ if(x.checked) ui.cv|=1<<+x.dataset.k; }); req(); }));
+$("cfAlg").addEventListener("change",(e)=>{ const b=e.target.value==="1"; document.querySelectorAll(".cfA").forEach((x)=>x.hidden=b); document.querySelectorAll(".cfB").forEach((x)=>x.hidden=!b); });
+
 /* ============ export PLY ============ */
 async function exportPly(){
   if(!D.n||busy) return;
@@ -601,20 +731,21 @@ async function exportPly(){
   if(window.showSaveFilePicker){ try{ fh=await showSaveFilePicker({suggestedName:name,types:[{description:"PLY",accept:{"application/octet-stream":[".ply"]}}]}); }
     catch(e){ if(e.name==="AbortError") return; fh=null; } }
   setBusy("Ukladám…");
+  const nOut=[0,1,2].reduce((s,k)=>s+((ui.cv>>k)&1?D.cls[k]:0),0);
   try{
     const t=dbl?"double":"float", hdr=["ply","format binary_little_endian 1.0","comment PointCloud - P. Herich",`comment zdroj: ${D.name}`,
-      `element vertex ${D.alive}`,`property ${t} x`,`property ${t} y`,`property ${t} z`].concat(col?["property uchar red","property uchar green","property uchar blue"]:[]).concat(["end_header",""]).join("\n");
+      `element vertex ${nOut}`,`property ${t} x`,`property ${t} y`,`property ${t} z`].concat(col?["property uchar red","property uchar green","property uchar blue"]:[]).concat(["end_header",""]).join("\n");
     const ws=fh?await fh.createWritable():null, parts=[], put=async(b)=>{ if(ws) await ws.write(b); else parts.push(new Blob([b])); };
     await put(new TextEncoder().encode(hdr));
     const B=1<<20; let written=0;
     for(let s=0;s<D.n;s+=NW*B){
-      const jobs=[]; for(let i=0;i<NW;i++){ const a=s+i*B, b=Math.min(D.n,a+B); if(a<b) jobs.push(exec(i,"exp",{a,b,org:D.org,dbl,col})); }
+      const jobs=[]; for(let i=0;i<NW;i++){ const a=s+i*B, b=Math.min(D.n,a+B); if(a<b) jobs.push(exec(i,"exp",{a,b,org:D.org,dbl,col,cv:ui.cv})); }
       for(const r of await Promise.all(jobs)){ if(r.n) await put(new Uint8Array(r.buf)); written+=r.n; }
       setBusy(`Ukladám… ${f1(Math.min(100,(s+NW*B)/D.n*100),0)} %`);
     }
     if(ws) await ws.close();
     else { const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob(parts)); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),60000); }
-    if(written!==D.alive) throw new Error(`zapísaných ${written}, čakalo sa ${D.alive}`);
+    if(written!==nOut) throw new Error(`zapísaných ${written}, čakalo sa ${nOut}`);
     $("bar").textContent=`Uložené: ${name} · ${fN(written)} bodov`;
   }catch(err){ console.error(err); alert("Uloženie zlyhalo: "+err.message); }
   finally{ setBusy(""); }
