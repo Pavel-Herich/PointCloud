@@ -95,17 +95,21 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
 
   <section>
     <h2>Strop a podlaha</h2>
-    <div class="row"><label class="k">metóda <select id="cfAlg"><option value="0">prvé body zhora</option><option value="1">vrstvy (medzery)</option></select></label></div>
+    <div class="row"><label class="k">metóda <select id="cfAlg"><option value="2" selected>model jaskyne</option><option value="0">prvé body zhora</option><option value="1">vrstvy (medzery)</option></select></label></div>
     <div class="row"><label class="k">bunka <input type="number" id="cfCell" value="0.2" step="0.05" min="0.02" class="n"> m</label>
-      <label class="k cfA">hrúbka stropu <input type="number" id="cfT" value="0.3" step="0.05" min="0.01" class="n"> m</label></div>
+      <label class="k cfA" hidden>hrúbka stropu <input type="number" id="cfT" value="0.3" step="0.05" min="0.01" class="n"> m</label></div>
     <div class="row cfB" hidden><label class="k">medzera <input type="number" id="cfG" value="0.3" step="0.05" min="0.02" class="n"> m</label>
       <label class="k">stena od <input type="number" id="cfW" value="0.8" step="0.1" min="0.05" class="n"> m</label></div>
+    <div class="row cfC"><label class="k" title="Zahustenie stien o toľko voxelov — zacelí malé diery v mračne">zacelenie <select id="cfR"><option>0</option><option selected>1</option><option>2</option></select> vox.</label>
+      <label class="k" title="V koľkých z 26 smerov musí lúč z voxelu prejsť nepárnym počtom stien, aby bol vzduchom jaskyne">uzavretosť <input type="number" id="cfE" value="15" min="8" max="26" class="n"> / 26</label></div>
+    <div class="row cfC"><label class="k"><input type="checkbox" id="mdlShow"> zobraziť model (dno a strop vzduchu)</label></div>
     <div class="row"><button id="bCf" class="pri" disabled>Rozdeliť</button></div>
     <div class="row"><span class="k">zobraziť:</span><label class="k"><input type="checkbox" class="cv" data-k="1" checked> strop</label>
       <label class="k"><input type="checkbox" class="cv" data-k="2" checked> podlaha</label><label class="k"><input type="checkbox" class="cv" data-k="0" checked> nezaradené</label></div>
     <div class="row"><button data-c="sel1">Vybrať strop</button><button data-c="sel2">Vybrať podlahu</button></div>
     <div class="row"><button data-c="to1">Výber → strop</button><button data-c="to2">Výber → podlaha</button></div>
-    <p class="k cfA">V každej bunke pôdorysu sa nájde najvyšší povrch (3. najvyšší bod, aby osamelé body nad stropom nevadili). Body do hrúbky stropu pod ním sú strop, všetko nižšie podlaha.</p>
+    <p class="k cfC">Z mračna sa postaví voxelový model a nájde sa v ňom vzduch jaskyne: prázdny voxel, z ktorého lúč vo väčšine z 26 smerov prejde nepárnym počtom stien. Z vnútra jaskyne lúč narazí na jednu stenu, z horniny alebo z vnútra stĺpa či balvanu prejde žiadnou alebo dvomi. Spodok vzduchu je dno, vrch strop. Bod sa priradí k najbližšiemu stĺpcu vzduchu: nad jeho polovicou je strop, pod ňou podlaha. Body bez vzduchu v blízkosti ostanú nezaradené.</p>
+    <p class="k cfA" hidden>V každej bunke pôdorysu sa nájde najvyšší povrch (3. najvyšší bod, aby osamelé body nad stropom nevadili). Body do hrúbky stropu pod ním sú strop, všetko nižšie podlaha.</p>
     <p class="k cfB" hidden>Body v bunke sa zoradia podľa výšky a medzery väčšie ako „medzera“ ich rozdelia na vrstvy. Zhora sa striedajú strop, podlaha, strop… (zvládne aj poschodia). Vrstva vyššia ako „stena od“ je stena a delí sa v polovici.</p>
     <p class="k">Laso, kváder, mazanie aj uloženie pôsobia len na zobrazené body.</p>
   </section>
@@ -229,6 +233,47 @@ function KERNELS(){
       }
     }
     return {r:[n1,n2]}; },
+  /* ---- model jaskyne: voxely, zacelenie, lúče, vzduch, stĺpce vzduchu, triedenie bodov ---- */
+  vox(S,a){ const X=S.X, M=S.M, O=new Uint8Array(a.O), g=a.g, ih=g.ih, nx=g.nx, ny=g.ny, nz=g.nz, Sl=nx*ny; let k=0;
+    for(let i=a.a,o=a.a*3;i<a.b;i++,o+=3){ if(M[i]>=2) continue;
+      const ix=Math.floor((X[o]-g.x0)*ih), iy=Math.floor((X[o+1]-g.y0)*ih), iz=Math.floor((X[o+2]-g.z0)*ih);
+      if(ix<1||iy<1||iz<1||ix>=nx-1||iy>=ny-1||iz>=nz-1) continue; O[iz*Sl+iy*nx+ix]=1; k++; }
+    return {r:k}; },
+  dil(S,a){ const s=new Uint8Array(a.src), d=new Uint8Array(a.dst), st=a.st, r=a.r, N=s.length;
+    for(let v=a.a;v<a.b;v++){ let o=0; for(let k=-r;k<=r;k++){ const u=v+k*st; if(u>=0&&u<N&&s[u]){ o=1; break; } } d[v]=o; }
+    return {r:1}; },
+  /* parita počtu stien, cez ktoré prejde lúč z voxelu v smere d (stena = súvislý úsek plných voxelov) */
+  ray(S,a){ const O=new Uint8Array(a.O), H=new Uint32Array(a.H), nx=a.nx, ny=a.ny, nz=a.nz, Sl=nx*ny, dx=a.d[0], dy=a.d[1], dz=a.d[2], dl=dx+dy*nx+dz*Sl;
+    const zs=dz>0?nz-2:1, ze=dz>0?0:nz-1, zi=dz>0?-1:1, ys=dy>0?ny-2:1, ye=dy>0?0:ny-1, yi=dy>0?-1:1, xs=dx>0?nx-2:1, xe=dx>0?0:nx-1, xi=dx>0?-1:1;
+    for(let z=zs;z!==ze;z+=zi) for(let y=ys;y!==ye;y+=yi){ let v=z*Sl+y*nx+xs;
+      for(let x=xs;x!==xe;x+=xi,v+=xi){ const u=v+dl; if((((H[u>>>5]>>>(u&31))&1)^((O[u]&&!O[u+dl])?1:0))) H[v>>>5]|=1<<(v&31); } }
+    return {r:1}; },
+  cnt(S,a){ const O=new Uint8Array(a.O), A=new Uint8Array(a.A), Hs=a.H.map((b)=>new Uint32Array(b)), nH=Hs.length, T=a.T; let air=0;
+    for(let v=a.a;v<a.b;v++){ if(O[v]){ A[v]=0; continue; } const w=v>>>5, bit=1<<(v&31); let e=0;
+      for(let j=0;j<nH;j++) if(Hs[j][w]&bit) e++;
+      const q=e>=T?1:0; A[v]=q; air+=q; }
+    return {r:air}; },
+  runs(S,a){ const A=new Uint8Array(a.A), Sl=a.nx*a.ny, nz=a.nz, c0=a.c0, c1=a.c1, m=c1-c0, fill=!!a.RZ;
+    const CNT=fill?null:new Uint32Array(a.CNT), CS=fill?new Uint32Array(a.CS):null, RZ=fill?new Uint16Array(a.RZ):null;
+    const on=new Uint8Array(m), st=new Uint16Array(m), pos=new Uint32Array(m);
+    if(fill) for(let j=0;j<m;j++) pos[j]=CS[c0+j]; else for(let j=0;j<m;j++) CNT[c0+j]=0;
+    for(let z=0;z<nz;z++){ const base=z*Sl+c0;
+      for(let j=0;j<m;j++){ const q=A[base+j];
+        if(q){ if(!on[j]){ on[j]=1; st[j]=z; } }
+        else if(on[j]){ on[j]=0; if(fill){ const p=pos[j]++; RZ[2*p]=st[j]; RZ[2*p+1]=z-1; } else CNT[c0+j]++; } } }
+    return {r:1}; },
+  cfm(S,a){ const X=S.X, M=S.M, K=S.K, CS=new Uint32Array(a.CS), RZ=new Uint16Array(a.RZ), g=a.g, ih=g.ih, nx=g.nx, ny=g.ny, Rm=a.R; let n0=0, n1=0, n2=0;
+    for(let i=a.a,o=a.a*3;i<a.b;i++,o+=3){ if(M[i]>=2) continue;
+      const fz=(X[o+2]-g.z0)*ih, ix=Math.floor((X[o]-g.x0)*ih), iy=Math.floor((X[o+1]-g.y0)*ih); let best=1e9, mid=0;
+      // krátke úseky vzduchu (úlomky v stĺpoch, kvapľoch) majú prirážku 3/dĺžka
+      for(let k=0;k<=Rm&&k-0.5<best;k++){ const kk=k>0?(k-0.5)*(k-0.5):0;
+        for(let yy=iy-k;yy<=iy+k;yy++){ if(yy<0||yy>=ny) continue; const step=(k===0||yy===iy-k||yy===iy+k)?1:2*k;
+          for(let xx=ix-k;xx<=ix+k;xx+=step){ if(xx<0||xx>=nx) continue; const c=yy*nx+xx;
+            for(let q=CS[c],qe=CS[c+1];q<qe;q++){ const zb=RZ[2*q], zt=RZ[2*q+1]+1, d=fz<zb?zb-fz:fz>zt?fz-zt:0, dist=Math.sqrt(kk+d*d), cost=dist+3/(zt-zb);
+              if(dist<=Rm&&cost<best){ best=cost; mid=(zb+zt)*0.5; } } } } }
+      let cl=0; if(best<1e9) cl=fz>=mid?1:2;
+      K[i]=cl; if(cl===1) n1++; else if(cl===2) n2++; else n0++; }
+    return {r:[n0,n1,n2]}; },
   selClass(S,a){ const M=S.M, K=S.K, cv=a.cv, cls=a.cls, R=[0,0,0,0,0];
     for(let i=a.a;i<a.b;i++){ let v=M[i]; if(v>=2) continue; const k=K[i];
       if((cv>>k)&1){ const nv=k===cls?1:0; if(nv!==v){ M[i]=nv; v=nv; } }
@@ -351,14 +396,14 @@ function loopSrc(H){
 
 /* ============ stav ============ */
 let D={n:0}, busy=false, nextOp=3, undo=[];
-const ui={mode:0,ps:1.5,budget:20e6,lasso:false,boxShow:true,boxClip:false,cv:7};
+const ui={mdl:false,mode:0,ps:1.5,budget:20e6,lasso:false,boxShow:true,boxClip:false,cv:7};
 function setBusy(t){ busy=!!t; $("busy").textContent=t||""; $("busy").style.display=t?"block":"none"; }
 const tick=()=>new Promise((r)=>setTimeout(r,0));
 
 /* ============ načítanie ============ */
 function freeData(){
   if(D.chunks) for(const ch of D.chunks){ gl.deleteBuffer(ch.bx); if(ch.bc) gl.deleteBuffer(ch.bc); gl.deleteBuffer(ch.bm); gl.deleteBuffer(ch.bk); gl.deleteVertexArray(ch.vao); }
-  $("bCf").disabled=true;
+  $("bCf").disabled=true; freeModel();
   if(pool) pool.close(); pool=null; MS=[]; D={n:0}; nextOp=3; undo=[];
 }
 async function openFile(file){
@@ -456,6 +501,9 @@ function prog(vs,fs){ const p=gl.createProgram();
   gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
   const u={}; for(const nm of ["mvp","ps","mode","zr","bon","bmn","bmx","col","cv"]) u[nm]=gl.getUniformLocation(p,nm); return {p,u}; }
 const PP=prog(VS(false),FS), PK=prog(VS(true),FS);
+const PV=prog(`#version 300 es
+layout(location=0) in vec3 p; layout(location=1) in vec4 c; uniform mat4 mvp; uniform float ps; out vec3 v;
+void main(){ gl_Position=mvp*vec4(p,1.0); gl_PointSize=ps; v=c.rgb; }`,FS);
 const PL=prog(`#version 300 es
 layout(location=0) in vec3 p; uniform mat4 mvp; void main(){ gl_Position=mvp*vec4(p,1.0); }`,
 `#version 300 es
@@ -539,6 +587,8 @@ function render(mv){
   if(!D.n){ $("bar").textContent=""; drawOverlay(null); return; }
   const m=mvpNow(), V=cullCells(m), f=mv?Math.min(1,ui.budget/Math.max(1,V)):1;
   setUniforms(PP,m); lastDrawn=drawPoints(m,f);
+  if(ui.mdl&&D.mdl){ gl.useProgram(PV.p); gl.uniformMatrix4fv(PV.u.mvp,false,new Float32Array(m)); gl.uniform1f(PV.u.ps,Math.max(2,ui.ps*1.5)*(window.devicePixelRatio||1));
+    gl.bindVertexArray(D.mdl.vao); gl.drawArrays(gl.POINTS,0,D.mdl.n); gl.bindVertexArray(null); }
   if(ui.boxShow) drawBox(m);
   const now=performance.now(); lastM=m; drawOverlay(m); if(now<centerUntil){ clearTimeout(centerT); centerT=setTimeout(()=>req(),centerUntil-now+30); }
   $("bar").textContent=`kreslených ${fN(lastDrawn)} bodov${f<1?` (preriedené ${f1(f*100,0)} %)`:""} · v zábere ${fN(V)} · zostáva ${fN(D.alive)} · vybraných ${fN(D.sel)}`+
@@ -678,33 +728,118 @@ $("bBoxReset").addEventListener("click",boxReset);
 
 /* ============ strop a podlaha ============ */
 function lowerBound(A,v,lo,hi){ while(lo<hi){ const m=(lo+hi)>>>1; if(A[m]<v) lo=m+1; else hi=m; } return lo; }
+async function classifyCols(cell,alg){
+  const bb=D.bb, nx=Math.max(1,Math.ceil((bb[3]-bb[0])/cell)), ny=Math.max(1,Math.ceil((bb[4]-bb[1])/cell)), nc=nx*ny;
+  if(nc>12e6) throw new Error(`bunka ${cell} m je pre tento rozmer príliš malá (${fN(nc)} stĺpcov, najviac 12 mil.)`);
+  setBusy("Strop a podlaha: stĺpce…"); const t0=performance.now();
+  if(!D.cols||D.cols.cell!==cell){
+    D.cols=null; await run("attach",()=>({}));
+    const cg={mn:[bb[0],bb[1]],inv:1/cell,nx,ny}, hs=await run("colHist",(i)=>({...rg(i),cg}));
+    const CS=new Uint32Array(alloc((nc+1)*4)), offs=hs.map(()=>new Uint32Array(nc)); let acc=0;
+    for(let c=0;c<nc;c++){ CS[c]=acc; for(let w=0;w<hs.length;w++){ offs[w][c]=acc; acc+=hs[w][c]; } }
+    CS[nc]=acc;
+    const P=new Uint32Array(alloc(D.n*4));
+    await run("attach",()=>({P:P.buffer,CS:CS.buffer}));
+    await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"colScatter",{...rg(i),cg,off:offs[i]},[offs[i].buffer])));
+    D.cols={cell,nx,ny,nc,CS,P};
+  }
+  const t1=performance.now(); setBusy("Strop a podlaha: triedim…");
+  const CS=D.cols.CS, R=[]; let c0=0;
+  for(let w=0;w<NW;w++){ const c1=w===NW-1?nc:Math.max(c0,Math.min(nc,lowerBound(CS,D.n*(w+1)/NW,c0,nc))); R.push([c0,c1]); c0=c1; }
+  const prm={alg,z0:Math.floor(bb[2])-1,t:Math.round(+$("cfT").value*1000),g:Math.round(+$("cfG").value*1000),w:Math.round(+$("cfW").value*1000)};
+  await run("classify",(i)=>({c0:R[i][0],c1:R[i][1],...prm}));
+  const t2=performance.now();
+  return `strop/podlaha: ${alg?"vrstvy":"prvé body zhora"}, bunka ${f1(cell,2)} m · stĺpce ${f1((t1-t0)/1000,2)} s · triedenie ${f1((t2-t1)/1000,2)} s`;
+}
+
+/* model jaskyne: voxely → zacelenie → lúče v 26 smeroch → vzduch → stĺpce vzduchu → súvislé časti → body */
+const DIRS=[]; for(let dz=-1;dz<=1;dz++) for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) if(dx||dy||dz) DIRS.push([dx,dy,dz]);
+const NMAX=200e6;
+async function classifyModel(cell){
+  const r=+$("cfR").value, T=Math.max(1,Math.min(26,Math.round(+$("cfE").value)||15)), bb=D.bb, P=r+2, t0=performance.now(), tm=[];
+  let h=cell, nx, ny, nz;
+  for(;;){ nx=Math.ceil((bb[3]-bb[0])/h)+2*P; ny=Math.ceil((bb[4]-bb[1])/h)+2*P; nz=Math.ceil((bb[5]-bb[2])/h)+2*P; if(nx*ny*nz<=NMAX&&nz<65000) break; h*=1.05; }
+  const Sl=nx*ny, N=Sl*nz, g={x0:bb[0]-P*h,y0:bb[1]-P*h,z0:bb[2]-P*h,ih:1/h,nx,ny,nz};
+  const vr=(i)=>({a:Math.floor(i*N/NW),b:Math.floor((i+1)*N/NW)}), cr=(i)=>({c0:Math.floor(i*Sl/NW),c1:Math.floor((i+1)*Sl/NW)});
+  const lap=(t)=>{ tm.push(performance.now()); setBusy(`Model (${fN(N/1e6)} mil. voxelov): ${t}…`); return tick(); };
+  await lap("voxely");
+  let O=alloc(N); await run("vox",(i)=>({...rg(i),O,g}));
+  if(r>0){ await lap("zacelenie");
+    let B1=alloc(N), B2=alloc(N);
+    await run("dil",(i)=>({...vr(i),src:O,dst:B1,st:1,r}));
+    await run("dil",(i)=>({...vr(i),src:B1,dst:B2,st:nx,r}));
+    await run("dil",(i)=>({...vr(i),src:B2,dst:O,st:Sl,r})); B1=B2=null; }
+  await lap("lúče v 26 smeroch");
+  let H=DIRS.map(()=>alloc(Math.ceil(N/32)*4)), next=0;
+  await Promise.all(Array.from({length:NW},async(_,w)=>{ while(next<DIRS.length){ const j=next++; await exec(w,"ray",{O,H:H[j],nx,ny,nz,d:DIRS[j]}); } }));
+  await lap("vzduch");
+  const A=alloc(N), air=(await run("cnt",(i)=>({...vr(i),O,A,H,T}))).reduce((s,v)=>s+v,0); H=null; O=null;
+  if(!air) throw new Error("model nenašiel vzduch jaskyne — skús zväčšiť voxel alebo znížiť uzavretosť");
+  await lap("stĺpce vzduchu");
+  const CNT=alloc(Sl*4); await run("runs",(i)=>({...cr(i),A,nx,ny,nz,CNT}));
+  const cn=new Uint32Array(CNT), CS=new Uint32Array(alloc((Sl+1)*4)); let nR=0;
+  for(let c=0;c<Sl;c++){ CS[c]=nR; nR+=cn[c]; } CS[Sl]=nR;
+  const RZ=new Uint16Array(alloc(Math.max(1,nR)*4)); await run("runs",(i)=>({...cr(i),A,nx,ny,nz,CS:CS.buffer,RZ:RZ.buffer}));
+  // súvislé časti vzduchu (stĺpce spojené cez steny susedných stĺpcov); drobné vrecká sa zahodia
+  await lap("súvislé časti");
+  const par=new Int32Array(nR); for(let i=0;i<nR;i++) par[i]=i;
+  const find=(i)=>{ while(par[i]!==i){ par[i]=par[par[i]]; i=par[i]; } return i; };
+  for(let y=0;y<ny;y++) for(let x=0;x<nx;x++){ const c=y*nx+x, s0=CS[c], e0=CS[c+1]; if(s0===e0) continue;
+    for(let t=0;t<2;t++){ const nb=t===0?(x+1<nx?c+1:-1):(y+1<ny?c+nx:-1); if(nb<0) continue; let i=s0, j=CS[nb]; const e1=CS[nb+1];
+      while(i<e0&&j<e1){ const it=RZ[2*i+1], jt=RZ[2*j+1];
+        if(RZ[2*i]<=jt&&RZ[2*j]<=it){ const a=find(i), b=find(j); if(a!==b){ if(a<b) par[b]=a; else par[a]=b; } }
+        if(it<jt) i++; else j++; } } }
+  for(let i=0;i<nR;i++) par[i]=find(i);
+  const vol=new Float64Array(nR); let vmax=0, nComp=0;
+  for(let i=0;i<nR;i++) vol[par[i]]+=RZ[2*i+1]-RZ[2*i]+1;
+  for(let i=0;i<nR;i++) if(par[i]===i){ nComp++; if(vol[i]>vmax) vmax=vol[i]; }
+  // vnútro predmetu (stĺp, balvan): za tenkou stenou ho zo všetkých strán obklopuje iný vzduch
+  const Gw=2*r+4, hit=new Float64Array(nR), tot=new Float64Array(nR);
+  const runAt=(c,z)=>{ for(let j=CS[c];j<CS[c+1];j++){ if(RZ[2*j]>z) return -1; if(RZ[2*j+1]>=z) return j; } return -1; };
+  for(let y=0;y<ny;y++) for(let x=0;x<nx;x++){ const c=y*nx+x;
+    for(let q=CS[c];q<CS[c+1];q++){ const cp=par[q], zb=RZ[2*q], zt=RZ[2*q+1], len=zt-zb+1, zm=(zb+zt)>>1;
+      if(q+1<CS[c+1]&&RZ[2*q+2]-zt-1<=Gw){ if(par[q+1]!==cp){ hit[cp]++; tot[cp]++; } } else tot[cp]++;
+      if(q>CS[c]&&zb-RZ[2*q-1]-1<=Gw){ if(par[q-1]!==cp){ hit[cp]++; tot[cp]++; } } else tot[cp]++;
+      for(const [ddx,ddy] of [[1,0],[-1,0],[0,1],[0,-1]]){ let res=0;
+        for(let k=1;k<=Gw;k++){ const xx=x+ddx*k, yy=y+ddy*k; if(xx<0||yy<0||xx>=nx||yy>=ny) break;
+          const j=runAt(yy*nx+xx,zm); if(j<0) continue; res=par[j]===cp?2:1; break; }
+        if(res===1){ hit[cp]+=len; tot[cp]+=len; } else if(res===0) tot[cp]+=len; } } }
+  let nObj=0; for(let i=0;i<nR;i++) if(par[i]===i&&vol[i]<vmax&&tot[i]>0&&hit[i]/tot[i]>=0.6){ vol[i]=-1; nObj++; }
+  const vmin=Math.max(1/(h*h*h),vmax*0.001);
+  const CS2=new Uint32Array(alloc((Sl+1)*4)); let n2=0;
+  for(let c=0;c<Sl;c++){ CS2[c]=n2; for(let i=CS[c];i<CS[c+1];i++) if(vol[par[i]]>=vmin) n2++; } CS2[Sl]=n2;
+  const RZ2=new Uint16Array(alloc(Math.max(1,n2)*4)); let kept=0, keptVol=0;
+  for(let i=0,q=0;i<nR;i++) if(vol[par[i]]>=vmin){ RZ2[2*q]=RZ[2*i]; RZ2[2*q+1]=RZ[2*i+1]; q++; }
+  for(let i=0;i<nR;i++) if(par[i]===i&&vol[i]>=vmin){ kept++; keptVol+=vol[i]; }
+  await lap("triedenie bodov");
+  await run("cfm",(i)=>({...rg(i),g,CS:CS2.buffer,RZ:RZ2.buffer,R:r+3}));
+  tm.push(performance.now());
+  buildModelVis(g,h,r,CS2,RZ2); D.air={g,h,r,CS:CS2,RZ:RZ2};
+  const ts=(a,b)=>f1((tm[b]-tm[a])/1000,2);
+  return `model jaskyne: voxel ${f1(h,3)} m · ${fN(N/1e6)} mil. voxelov · zacelenie ${r} · uzavretosť ${T}/26\n`+
+    `vzduch ${fN(keptVol*h*h*h)} m³ v ${kept} časti${kept===1?"":"ach"} · vnútro predmetov ${nObj} · drobných vreciek ${nComp-kept-nObj}\n`+
+    `čas ${f1((tm[tm.length-1]-t0)/1000,2)} s (lúče ${ts(r>0?2:1,r>0?3:2)} s · body ${ts(tm.length-2,tm.length-1)} s)`;
+}
+function freeModel(){ if(D.mdl){ gl.deleteBuffer(D.mdl.bp); gl.deleteBuffer(D.mdl.bc); gl.deleteVertexArray(D.mdl.vao); D.mdl=null; } }
+function buildModelVis(g,h,r,CS,RZ){
+  freeModel(); const nx=g.nx, ny=g.ny, n=CS[nx*ny]*2, P=new Float32Array(n*3), C=new Uint8Array(n*4); let k=0;
+  for(let y=0;y<ny;y++) for(let x=0;x<nx;x++){ const c=y*nx+x, px=g.x0+(x+0.5)*h, py=g.y0+(y+0.5)*h;
+    for(let q=CS[c];q<CS[c+1];q++){
+      P[k*3]=px; P[k*3+1]=py; P[k*3+2]=g.z0+(RZ[2*q]-r)*h; C.set([245,150,40,255],k*4); k++;
+      P[k*3]=px; P[k*3+1]=py; P[k*3+2]=g.z0+(RZ[2*q+1]+1+r)*h; C.set([90,160,255,255],k*4); k++; } }
+  const vao=gl.createVertexArray(); gl.bindVertexArray(vao);
+  const bp=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,bp); gl.bufferData(gl.ARRAY_BUFFER,P,gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
+  const bc=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,bc); gl.bufferData(gl.ARRAY_BUFFER,C,gl.STATIC_DRAW); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,4,gl.UNSIGNED_BYTE,true,0,0);
+  gl.bindVertexArray(null); D.mdl={vao,bp,bc,n};
+}
 async function classify(){
   if(!D.n||busy) return;
-  const cell=Math.max(0.02,+$("cfCell").value||0.2), alg=+$("cfAlg").value, bb=D.bb;
-  const nx=Math.max(1,Math.ceil((bb[3]-bb[0])/cell)), ny=Math.max(1,Math.ceil((bb[4]-bb[1])/cell)), nc=nx*ny;
-  if(nc>12e6){ alert(`Bunka ${cell} m je pre tento rozmer príliš malá (${fN(nc)} stĺpcov, najviac 12 mil.). Zväčši ju.`); return; }
-  setBusy("Strop a podlaha: stĺpce…"); const t0=performance.now();
+  const cell=Math.max(0.02,+$("cfCell").value||0.2), alg=+$("cfAlg").value;
+  setBusy("Strop a podlaha…");
   try{
-    if(!D.cols||D.cols.cell!==cell){
-      D.cols=null; await run("attach",()=>({}));
-      const cg={mn:[bb[0],bb[1]],inv:1/cell,nx,ny}, hs=await run("colHist",(i)=>({...rg(i),cg}));
-      const CS=new Uint32Array(alloc((nc+1)*4)), offs=hs.map(()=>new Uint32Array(nc)); let acc=0;
-      for(let c=0;c<nc;c++){ CS[c]=acc; for(let w=0;w<hs.length;w++){ offs[w][c]=acc; acc+=hs[w][c]; } }
-      CS[nc]=acc;
-      const P=new Uint32Array(alloc(D.n*4));
-      await run("attach",()=>({P:P.buffer,CS:CS.buffer}));
-      await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"colScatter",{...rg(i),cg,off:offs[i]},[offs[i].buffer])));
-      D.cols={cell,nx,ny,nc,CS,P};
-    }
-    const t1=performance.now(); setBusy("Strop a podlaha: triedim…");
-    const CS=D.cols.CS, R=[]; let c0=0;
-    for(let w=0;w<NW;w++){ const c1=w===NW-1?nc:Math.max(c0,Math.min(nc,lowerBound(CS,D.n*(w+1)/NW,c0,nc))); R.push([c0,c1]); c0=c1; }
-    const prm={alg,z0:Math.floor(bb[2])-1,t:Math.round(+$("cfT").value*1000),g:Math.round(+$("cfG").value*1000),w:Math.round(+$("cfW").value*1000)};
-    await run("classify",(i)=>({c0:R[i][0],c1:R[i][1],...prm}));
+    D.cfText=alg===2?await classifyModel(cell):await classifyCols(cell,alg);
     sumCounts(await run("maskOp",(i)=>({...rg(i),kind:6})));
     uploadClass(); ui.mode=2; $("colMode").value="2";
-    const t2=performance.now();
-    D.cfText=`strop/podlaha: ${alg?"vrstvy":"prvé body zhora"}, bunka ${f1(cell,2)} m · stĺpce ${f1((t1-t0)/1000,2)} s · triedenie ${f1((t2-t1)/1000,2)} s`;
     updInfo(); req();
   }catch(err){ console.error(err); alert("Chyba: "+err.message); }
   finally{ setBusy(""); }
@@ -721,7 +856,8 @@ async function classAct(k){
 $("bCf").addEventListener("click",classify);
 document.querySelectorAll("[data-c]").forEach((b)=>b.addEventListener("click",()=>classAct(b.dataset.c)));
 document.querySelectorAll(".cv").forEach((c)=>c.addEventListener("change",()=>{ ui.cv=0; document.querySelectorAll(".cv").forEach((x)=>{ if(x.checked) ui.cv|=1<<+x.dataset.k; }); req(); }));
-$("cfAlg").addEventListener("change",(e)=>{ const b=e.target.value==="1"; document.querySelectorAll(".cfA").forEach((x)=>x.hidden=b); document.querySelectorAll(".cfB").forEach((x)=>x.hidden=!b); });
+$("cfAlg").addEventListener("change",(e)=>{ const v=e.target.value; for(const [cl,a] of [[".cfA","0"],[".cfB","1"],[".cfC","2"]]) document.querySelectorAll(cl).forEach((x)=>x.hidden=v!==a); });
+$("mdlShow").addEventListener("change",(e)=>{ ui.mdl=e.target.checked; req(); });
 
 /* ============ export PLY ============ */
 async function exportPly(){

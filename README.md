@@ -20,7 +20,11 @@ Body sa držia v pamäti ako float32 voči lokálnemu počiatku (prvý bod zaokr
 
 ## Strop a podlaha
 
-Pôdorys sa rozdelí na bunky (predvolene 0,2 m) a body v každej bunke sa zoradia podľa výšky.
+Tri metódy:
+
+- **model jaskyne** (predvolená) — z mračna sa postaví voxelový model (voxel = „bunka“, pri veľkom mračne sa sám zväčší, najviac 200 mil. voxelov). Steny sa zahustia o „zacelenie“ voxelov, aby lúče neprekĺzli cez diery a medzery. Z každého prázdneho voxelu sa vrhne lúč v 26 smeroch a spočíta sa, cez koľko stien prejde: zo vzduchu jaskyne cez nepárny počet (jednu stenu), z horniny aj z vnútra stĺpa či balvanu cez párny (žiadnu alebo dve). Vzduch sú voxely, kde je nepárnych smerov aspoň „uzavretosť“ (predvolene 15 z 26). Vzduch sa po stĺpcoch rozdelí na úseky; spodok úseku je dno, vrch strop. Drobné oddelené vrecká a vzduch uzavretý v predmetoch sa zahodia. Každý bod sa priradí k najbližšiemu úseku vzduchu (krátke úseky majú prirážku): nad jeho polovicou je strop, pod ňou podlaha. Body bez vzduchu do vzdialenosti zacelenie + 3 voxely ostanú nezaradené. „Zobraziť model“ ukáže dno (oranžovo) a strop (modro) vzduchu.
+
+Ďalšie dve metódy rozdelia pôdorys na bunky (predvolene 0,2 m) a body v každej bunke zoradia podľa výšky.
 
 - **prvé body zhora** — najvyšší povrch v bunke (3. najvyšší bod, aby osamelé body nad stropom nevadili); body do zvolenej hrúbky pod ním sú strop, ostatné podlaha
 - **vrstvy (medzery)** — medzery väčšie ako „medzera“ rozdelia body v bunke na vrstvy; zhora sa striedajú strop, podlaha, strop… (poschodia). Vrstva vyššia ako „stena od“ sa delí v polovici.
