@@ -45,7 +45,7 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
 <body>
 <div id="app">
 <aside>
-  <h1><a href="index.html">PointCloud</a> <span class="k">· etapa 2</span></h1>
+  <h1><a href="index.html">PointCloud</a> <span class="k">· etapa 2b</span></h1>
 
   <section>
     <h2>Súbor</h2>
@@ -54,6 +54,8 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
       <select id="expFmt" title="Typ súradníc v uloženom súbore"><option value="f">float32</option><option value="d">float64</option></select>
       <button id="bExp" disabled>Uložiť PLY…</button>
     </div>
+    <div class="row"><label class="btn" title="Trajektória skenera (GeoSLAM *_traj.txt alebo PLY) v súradniciach mračna: istý vzduch pre model jaskyne">Trajektória…<input type="file" id="fTraj" accept=".txt,.ply,.csv,.xyz" hidden></label>
+      <label class="k"><input type="checkbox" id="trShow" checked> zobraziť</label></div>
     <pre id="info">Žiadne mračno.</pre>
   </section>
 
@@ -95,20 +97,24 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
 
   <section>
     <h2>Strop a podlaha</h2>
-    <div class="row"><label class="k">metóda <select id="cfAlg"><option value="2" selected>model jaskyne</option><option value="0">prvé body zhora</option><option value="1">vrstvy (medzery)</option></select></label></div>
-    <div class="row"><label class="k">bunka <input type="number" id="cfCell" value="0.2" step="0.05" min="0.02" class="n"> m</label>
+    <div class="row"><label class="k">metóda <select id="cfAlg"><option value="3" selected>blana cez najširšie miesta</option><option value="2">model jaskyne (polovica výšky)</option><option value="0">prvé body zhora</option><option value="1">vrstvy (medzery)</option></select></label></div>
+    <div class="row"><label class="k" title="Voxel hrubého modelu vzduchu, pri ostatných metódach bunka pôdorysu">bunka <input type="number" id="cfCell" value="0.2" step="0.05" min="0.02" class="n"> m</label>
       <label class="k cfA" hidden>hrúbka stropu <input type="number" id="cfT" value="0.3" step="0.05" min="0.01" class="n"> m</label></div>
     <div class="row cfB" hidden><label class="k">medzera <input type="number" id="cfG" value="0.3" step="0.05" min="0.02" class="n"> m</label>
       <label class="k">stena od <input type="number" id="cfW" value="0.8" step="0.1" min="0.05" class="n"> m</label></div>
     <div class="row cfC"><label class="k" title="Zahustenie stien o toľko voxelov — zacelí malé diery v mračne">zacelenie <select id="cfR"><option>0</option><option selected>1</option><option>2</option></select> vox.</label>
       <label class="k" title="V koľkých z 26 smerov musí lúč z voxelu prejsť nepárnym počtom stien, aby bol vzduchom jaskyne">uzavretosť <input type="number" id="cfE" value="15" min="8" max="26" class="n"> / 26</label></div>
-    <div class="row cfC"><label class="k"><input type="checkbox" id="mdlShow"> zobraziť model (dno a strop vzduchu)</label></div>
+    <div class="row cfD"><label class="k" title="Bunka pôdorysu jemného modelu, v ktorom sa napína blana">jemná bunka <input type="number" id="cfF" value="0.1" step="0.01" min="0.02" class="n"> m</label>
+      <label class="k" title="Blana sa kotví v tejto vzdialenosti od okraja pôdorysu; výklenky menšie než toto okraj neposúvajú">okraj <input type="number" id="cfS" value="0.3" step="0.05" min="0.05" class="n"> m</label></div>
+    <div class="row cfD"><label class="k" title="Podtečenie, vrecko alebo medzera pod balvanom do tejto hĺbky patrí k chodbe nad sebou; hlbšie je samostatná úroveň. Rovnako veľké stĺpy sa neberú ako okraj.">podtečenie do <input type="number" id="cfD" value="2" step="0.5" min="0" class="n"> m</label></div>
+    <div class="row cfC"><label class="k"><input type="checkbox" id="mdlShow"> zobraziť model (blana, resp. dno a strop vzduchu)</label></div>
     <div class="row"><button id="bCf" class="pri" disabled>Rozdeliť</button></div>
     <div class="row"><span class="k">zobraziť:</span><label class="k"><input type="checkbox" class="cv" data-k="1" checked> strop</label>
       <label class="k"><input type="checkbox" class="cv" data-k="2" checked> podlaha</label><label class="k"><input type="checkbox" class="cv" data-k="0" checked> nezaradené</label></div>
     <div class="row"><button data-c="sel1">Vybrať strop</button><button data-c="sel2">Vybrať podlahu</button></div>
     <div class="row"><button data-c="to1">Výber → strop</button><button data-c="to2">Výber → podlaha</button></div>
-    <p class="k cfC">Z mračna sa postaví voxelový model a nájde sa v ňom vzduch jaskyne: prázdny voxel, z ktorého lúč vo väčšine z 26 smerov prejde nepárnym počtom stien. Z vnútra jaskyne lúč narazí na jednu stenu, z horniny alebo z vnútra stĺpa či balvanu prejde žiadnou alebo dvomi. Spodok vzduchu je dno, vrch strop. Bod sa priradí k najbližšiemu stĺpcu vzduchu: nad jeho polovicou je strop, pod ňou podlaha. Body bez vzduchu v blízkosti ostanú nezaradené.</p>
+    <p class="k cfD">Hranica stropu a podlahy ide cez najširšie miesta pôdorysu. Hrubý model nájde vzduch jaskyne, jemný ho v bunkách pôdorysu dotiahne až po body a k stenám. Vzduchom sa napne blana ukotvená pri okraji pôdorysu: balvan ju nadvihne, kvapeľ stlačí, inak je hladká. Bod nad blanou je strop, pod ňou podlaha. Plytké podtečenia, vrecká a medzery pod balvanmi patria celé k podlahe (alebo k stropu, ak sú nad chodbou). Zvislé steny sa delia vo výške, ktorú blana prenesie z okolia.</p>
+    <p class="k cfM" hidden>Z mračna sa postaví voxelový model a nájde sa v ňom vzduch jaskyne: prázdny voxel, z ktorého lúč vo väčšine z 26 smerov prejde nepárnym počtom stien. Z vnútra jaskyne lúč narazí na jednu stenu, z horniny alebo z vnútra stĺpa či balvanu prejde žiadnou alebo dvomi. Spodok vzduchu je dno, vrch strop. Bod sa priradí k najbližšiemu stĺpcu vzduchu: nad jeho polovicou je strop, pod ňou podlaha. Body bez vzduchu v blízkosti ostanú nezaradené.</p>
     <p class="k cfA" hidden>V každej bunke pôdorysu sa nájde najvyšší povrch (3. najvyšší bod, aby osamelé body nad stropom nevadili). Body do hrúbky stropu pod ním sú strop, všetko nižšie podlaha.</p>
     <p class="k cfB" hidden>Body v bunke sa zoradia podľa výšky a medzery väčšie ako „medzera“ ich rozdelia na vrstvy. Zhora sa striedajú strop, podlaha, strop… (zvládne aj poschodia). Vrstva vyššia ako „stena od“ je stena a delí sa v polovici.</p>
     <p class="k">Laso, kváder, mazanie aj uloženie pôsobia len na zobrazené body.</p>
@@ -162,6 +168,7 @@ function KERNELS(){
     return (x,y,z)=>{ let ix=((x-mx)*gi)|0, iy=((y-my)*gi)|0, iz=((z-mz)*gi)|0;
       if(ix<0)ix=0; else if(ix>=nx)ix=nx-1; if(iy<0)iy=0; else if(iy>=ny)iy=ny-1; if(iz<0)iz=0; else if(iz>=nz)iz=nz-1;
       return (iz*ny+iy)*nx+ix; }; };
+  const lb=(A,v,lo,hi)=>{ while(lo<hi){ const m=(lo+hi)>>>1; if(A[m]<v) lo=m+1; else hi=m; } return lo; };
   return {
   async parse(S,a){
     const [ox,oy,oz]=a.org, st=[1e300,1e300,1e300,-1e300,-1e300,-1e300]; let k=0;
@@ -233,6 +240,10 @@ function KERNELS(){
       }
     }
     return {r:[n1,n2]}; },
+  bbx(S,a){ const X=S.X, M=S.M, r=[1e300,1e300,1e300,-1e300,-1e300,-1e300];
+    for(let i=a.a,o=a.a*3;i<a.b;i++,o+=3){ if(M[i]>=2) continue; const x=X[o], y=X[o+1], z=X[o+2];
+      if(x<r[0])r[0]=x; if(x>r[3])r[3]=x; if(y<r[1])r[1]=y; if(y>r[4])r[4]=y; if(z<r[2])r[2]=z; if(z>r[5])r[5]=z; }
+    return {r}; },
   /* ---- model jaskyne: voxely, zacelenie, lúče, vzduch, stĺpce vzduchu, triedenie bodov ---- */
   vox(S,a){ const X=S.X, M=S.M, O=new Uint8Array(a.O), g=a.g, ih=g.ih, nx=g.nx, ny=g.ny, nz=g.nz, Sl=nx*ny; let k=0;
     for(let i=a.a,o=a.a*3;i<a.b;i++,o+=3){ if(M[i]>=2) continue;
@@ -274,6 +285,200 @@ function KERNELS(){
       let cl=0; if(best<1e9) cl=fz>=mid?1:2;
       K[i]=cl; if(cl===1) n1++; else if(cl===2) n2++; else n0++; }
     return {r:[n0,n1,n2]}; },
+  /* ---- jemný úrovňový model: výšky bodov po bunkách pôdorysu (zoradené), úseky vzduchu v bunkách ---- */
+  zh(S,a){ const g=a.g, X=S.X, M=S.M, nx=g.nx, ny=g.ny, ic=g.ic, h=new Uint32Array(nx*ny);
+    for(let i=a.a,o=a.a*3;i<a.b;i++,o+=3){ if(M[i]>=2) continue; const ix=Math.floor((X[o]-g.x0)*ic), iy=Math.floor((X[o+1]-g.y0)*ic);
+      if(ix>=0&&iy>=0&&ix<nx&&iy<ny) h[iy*nx+ix]++; }
+    return {r:h,t:[h.buffer]}; },
+  zs(S,a){ const g=a.g, X=S.X, M=S.M, nx=g.nx, ny=g.ny, ic=g.ic, off=a.off, Z=new Float32Array(a.Z);
+    for(let i=a.a,o=a.a*3;i<a.b;i++,o+=3){ if(M[i]>=2) continue; const ix=Math.floor((X[o]-g.x0)*ic), iy=Math.floor((X[o+1]-g.y0)*ic);
+      if(ix>=0&&iy>=0&&ix<nx&&iy<ny) Z[off[iy*nx+ix]++]=X[o+2]; }
+    return {r:1}; },
+  zq(S,a){ const Z=new Float32Array(a.Z), CS=new Uint32Array(a.CS);
+    for(let c=a.c0;c<a.c1;c++){ const s=CS[c], e=CS[c+1]; if(e-s>1) Z.subarray(s,e).sort(); }
+    return {r:1}; },
+  /* osamelé body a body, ktoré do bunky zasahujú len okrajom steny zo susednej bunky (tam je ich v tej istej výške oveľa viac),
+     vzduch neohraničujú: KF = 1 bod ohraničuje, 0 neohraničuje (ostáva v zozname ako svedok steny medzi bunkami) */
+  zf(S,a){ const Z=new Float32Array(a.Z), CS=new Uint32Array(a.CS), KF=new Uint8Array(a.KF), nx=a.nx, ny=a.ny, t0=a.t0, t2=2*a.t0, thr=a.thr, rho=a.rho; let own=new Uint16Array(1024), nbm=new Uint16Array(1024), rem=0;
+    for(let c=a.c0;c<a.c1;c++){ const s=CS[c], e=CS[c+1], m=e-s; if(!m) continue; if(own.length<m){ own=new Uint16Array(m*2); nbm=new Uint16Array(m*2); }
+      let lo=s, hi=s; for(let i=s;i<e;i++){ const z=Z[i]; while(Z[lo]<z-t0) lo++; while(hi<e&&Z[hi]<=z+t0) hi++; own[i-s]=Math.min(65535,hi-lo); nbm[i-s]=0; }
+      const x=c%nx, y=(c-x)/nx;
+      for(let d=0;d<4;d++){ const b=d===0?(x+1<nx?c+1:-1):d===1?(x>0?c-1:-1):d===2?(y+1<ny?c+nx:-1):(y>0?c-nx:-1); if(b<0) continue;
+        const s2=CS[b], e2=CS[b+1]; if(s2===e2) continue; let l2=s2, h2=s2;
+        for(let i=s;i<e;i++){ const z=Z[i]; while(l2<e2&&Z[l2]<z-t2) l2++; if(h2<l2) h2=l2; while(h2<e2&&Z[h2]<=z+t2) h2++; const k=(h2-l2)>>1; if(k>nbm[i-s]) nbm[i-s]=Math.min(65535,k); } }
+      for(let i=s;i<e;i++){ const k=own[i-s]>=thr&&own[i-s]>=rho*nbm[i-s]?1:0; KF[i]=k; if(!k) rem++; } }
+    return {r:rem}; },
+  /* zárodky: každý úsek hrubého vzduchu sa v jemnej bunke roztiahne po najbližší bod pod sebou a nad sebou */
+  seed(S,a){ const Z=new Float32Array(a.Z), CS=new Uint32Array(a.CS), KF=new Uint8Array(a.KF), SF=new Uint32Array(a.SF), ZF=new Float32Array(a.ZF), ZC=new Float32Array(a.ZC);
+    const ACS=new Uint32Array(a.ACS), ARZ=new Uint16Array(a.ARZ), g=a.g, G=a.G, nx=g.nx, c=g.c, h=1/G.ih, Lm=4*h, rh=a.r*h; let weak=0;
+    for(let cl=a.c0;cl<a.c1;cl++){ let q=SF[cl], last=-1; const qe=SF[cl+1]; if(q===qe) continue;
+      const ix=cl%nx, iy=(cl-ix)/nx, cx=Math.floor((g.x0+(ix+0.5)*c-G.x0)*G.ih), cy=Math.floor((g.y0+(iy+0.5)*c-G.y0)*G.ih), cc=cy*G.nx+cx, s=CS[cl], e=CS[cl+1];
+      for(let j=ACS[cc];j<ACS[cc+1];j++,q++){ const za=G.z0+ARZ[2*j]*h, zb=G.z0+(ARZ[2*j+1]+1)*h, p=lb(Z,(za+zb)*0.5,s,e);
+        let i=p-1; while(i>=s&&!KF[i]) i--; let zf=i>=s?Z[i]:-1e9; i=p; while(i<e&&!KF[i]) i++; let zc=i<e?Z[i]:1e9;
+        if(za-zf>Lm){ zf=za-rh; weak++; } if(zc-zb>Lm){ zc=zb+rh; weak++; }
+        if(last>=0&&zf<ZC[last]){ if(zc>ZC[last]) ZC[last]=zc; ZF[q]=1; ZC[q]=0; }   // ten istý priestor ako predošlý úsek
+        else { ZF[q]=zf; ZC[q]=zc; last=q; } } }
+    return {r:weak}; },
+  /* rast: od zárodkov do susedných buniek, kým je medzi bodmi zdola aj zhora ohraničená medzera prekrývajúca sa so susedom.
+     Kde sused nie je: WB bit d = stena (v susednej bunke sú vo výške úseku body), bit 4+d = otvorené (diera, koniec skenu). */
+  grow(S,a){ const Z=new Float32Array(a.Z), CS=new Uint32Array(a.CS), KF=new Uint8Array(a.KF), SF=new Uint32Array(a.SF), g=a.g, nx=g.nx, ny=g.ny, nc=nx*ny, g0=a.g0, dl=a.dl;
+    const mk=(b)=>a.shared?new SharedArrayBuffer(b):new ArrayBuffer(b);
+    let n=SF[nc], cap=n+(n>>1)+65536, zf=new Float32Array(cap), zc=new Float32Array(cap), cel=new Int32Array(cap), nxt=new Int32Array(cap), wb=new Uint8Array(cap);
+    zf.set(new Float32Array(a.ZF).subarray(0,n)); zc.set(new Float32Array(a.ZC).subarray(0,n));
+    const head=new Int32Array(nc).fill(-1), ns=n; let bad=0;
+    for(let c=nc-1;c>=0;c--) for(let q=SF[c+1]-1;q>=SF[c]&&q>=0;q--){ if(zc[q]>zf[q]){ cel[q]=c; nxt[q]=head[c]; head[c]=q; } else { cel[q]=-1; bad++; } }
+    const ext=(A,T)=>{ const B=new T(cap); B.set(A); return B; };
+    const DX=[1,-1,0,0], DY=[0,0,1,-1], redo=[], tk=a.tk, wk=a.wk; let qi=0, ext2=0, nrock=0, nwall=0;
+    const proc=(q)=>{ const c=cel[q]; if(c<0) return; const x=c%nx, y=(c-x)/nx, lo=zf[q], hi=zc[q]; wb[q]=0;
+      for(let d=0;d<4;d++){ const xx=x+DX[d], yy=y+DY[d]; if(xx<0||yy<0||xx>=nx||yy>=ny){ wb[q]|=16<<d; continue; }
+        const b=yy*nx+xx; let cov=0, any=false;
+        for(let j=head[b];j>=0;j=nxt[j]){ const o=Math.min(hi,zc[j])-Math.max(lo,zf[j]); if(o>0){ cov+=o; any=true; } }
+        if(hi-lo-cov<g0) continue;
+        const s=CS[b], e=CS[b+1], sa=CS[c], ea=CS[c+1], w1=hi+dl, mg=Math.min(0.3*(hi-lo),Math.max(0.03,0.5*g0)); let inside=0, zp=NaN, raw=0, blocked=false;
+        for(let i=lb(Z,lo-dl,s,e);i<e;i++){ const z2=Z[i]; if(z2>w1) break;
+          if(!KF[i]){ if(z2>lo&&z2<hi) raw++; continue; }
+          if(z2>lo+mg&&z2<hi-mg) inside++;
+          const z=zp, rw=raw; zp=z2; raw=0; if(!(z2-z>=g0)) continue;
+          const o0=Math.max(lo,z), o1=Math.min(hi,z2); if(o1-o0<g0) continue;
+          // úseky bunky, ktoré do medzery zasahujú, sú ten istý vzduch: slabý okraj zárodku nahradia skutočné body, zvyšné sa zlúčia
+          let dup=-1, rock=false; for(let j=head[b],pv=-1;j>=0;j=nxt[j]){ if(Math.min(z2,zc[j])-Math.max(z,zf[j])>0){ if(dup<0) dup=j; else { nxt[pv]=nxt[j]; cel[j]=-1; bad++; if(tf[j]) tf[dup]=1; continue; } }
+            else if((z>=zc[j]&&z-zc[j]<tk)||(zf[j]>=z2&&zf[j]-z2<tk)) rock=true; pv=j; }
+          if(dup>=0){ if(z<zf[dup]-1e-4||z2>zc[dup]+1e-4){ if(z<zf[dup]) zf[dup]=z; if(z2>zc[dup]) zc[dup]=z2; ext2++; if(dup<qi) redo.push(dup); } any=true; continue; }
+          // nový úsek len vtedy, ak ho od zdroja neoddeľuje stena (vyradené body oboch buniek vo výške prekryvu)
+          // a ak nie je hneď nad stropom alebo pod dnom už známeho vzduchu tej istej bunky (to je hornina)
+          if(rock){ nrock++; continue; }
+          if(rw+lb(Z,o1,sa,ea)-lb(Z,o0,sa,ea)>=Math.max(3,wk*(o1-o0))){ blocked=true; nwall++; continue; }
+          if(n===cap){ cap=Math.ceil(cap*1.5); zf=ext(zf,Float32Array); zc=ext(zc,Float32Array); cel=ext(cel,Int32Array); nxt=ext(nxt,Int32Array); wb=ext(wb,Uint8Array); tf=ext(tf,Uint8Array); }
+          zf[n]=z; zc[n]=z2; cel[n]=b; nxt[n]=head[b]; head[b]=n; n++; any=true; }
+        if(!any) wb[q]|=((inside>0||blocked)?1:16)<<d; } };
+    // istý vzduch z trajektórie skenera: kde poloha skenera ešte nie je vo vzduchu modelu, vznikne úsek z medzery okolo nej
+    let tf=new Uint8Array(cap), nts=0, tin=0, tall=0;
+    if(a.tr){ const T=a.tr; for(let i=0;i<T.length;i+=3){ const ix=Math.floor((T[i]-g.x0)*g.ic), iy=Math.floor((T[i+1]-g.y0)*g.ic), z=T[i+2]; if(ix<0||iy<0||ix>=nx||iy>=ny) continue; tall++;
+        const c=iy*nx+ix; let f=-1; for(let j=head[c];j>=0;j=nxt[j]) if(z>zf[j]&&z<zc[j]){ f=j; break; }
+        if(f>=0) tin++; else { const s=CS[c], e=CS[c+1], p=lb(Z,z,s,e); let i0=p-1; while(i0>=s&&!KF[i0]) i0--; let i1=p; while(i1<e&&!KF[i1]) i1++;
+          if(i0<s||i1>=e||Z[i1]-Z[i0]<g0) continue; const z1=Z[i0], z2=Z[i1];
+          for(let j=head[c],pv=-1;j>=0;j=nxt[j]){ if(Math.min(z2,zc[j])-Math.max(z1,zf[j])>0){ if(f<0) f=j; else { nxt[pv]=nxt[j]; cel[j]=-1; bad++; continue; } } pv=j; }
+          if(f>=0){ if(z1<zf[f]) zf[f]=z1; if(z2>zc[f]) zc[f]=z2; }
+          else { if(n===cap){ cap=Math.ceil(cap*1.5); zf=ext(zf,Float32Array); zc=ext(zc,Float32Array); cel=ext(cel,Int32Array); nxt=ext(nxt,Int32Array); wb=ext(wb,Uint8Array); tf=ext(tf,Uint8Array); }
+            zf[n]=z1; zc[n]=z2; cel[n]=c; nxt[n]=head[c]; head[c]=n; f=n++; nts++; } }
+        tf[f]=1; } }
+    for(;;){ if(qi<n) proc(qi++); else if(redo.length){ const q=redo.pop(); proc(q); } else break; }
+    // triesky: tenký úsek, ktorého všetci susedia sú aspoň 4× vyšší, je náhodná medzera medzi bodmi steny (alebo výklenok pod rozlíšením) – preč
+    let slv=0;
+    for(let q=0;q<n;q++){ const c=cel[q]; if(c<0||tf[q]) continue; const hq=zc[q]-zf[q]; if(hq>=0.3) continue; const x=c%nx, y=(c-x)/nx; let thin=false;
+      for(let d=0;d<4&&!thin;d++){ const xx=x+DX[d], yy=y+DY[d]; if(xx<0||yy<0||xx>=nx||yy>=ny) continue;
+        for(let j=head[yy*nx+xx];j>=0;j=nxt[j]) if(Math.min(zc[q],zc[j])-Math.max(zf[q],zf[j])>0&&zc[j]-zf[j]<4*hq){ thin=true; break; } }
+      if(thin) continue;
+      if(head[c]===q) head[c]=nxt[q]; else for(let j=head[c];j>=0;j=nxt[j]) if(nxt[j]===q){ nxt[j]=nxt[q]; break; }
+      cel[q]=-1; bad++; slv++;
+      for(let d=0;d<4;d++){ const xx=x+DX[d], yy=y+DY[d]; if(xx<0||yy<0||xx>=nx||yy>=ny) continue;
+        for(let j=head[yy*nx+xx];j>=0;j=nxt[j]){ if(!(Math.min(zc[q],zc[j])-Math.max(zf[q],zf[j])>0)) continue; let other=false;
+          for(let k=head[c];k>=0;k=nxt[k]) if(Math.min(zc[k],zc[j])-Math.max(zf[k],zf[j])>0){ other=true; break; }
+          if(!other) wb[j]=(wb[j]&~(16<<(d^1)))|(1<<(d^1)); } } }
+    const m=n-bad, FS=new Uint32Array(mk((nc+1)*4)), oF=new Float32Array(mk(Math.max(1,m)*4)), oC=new Float32Array(mk(Math.max(1,m)*4)), oW=new Uint8Array(mk(Math.max(1,m))), oT=new Uint8Array(mk(Math.max(1,m)));
+    for(let q=0;q<n;q++) if(cel[q]>=0) FS[cel[q]+1]++;
+    for(let c=0;c<nc;c++) FS[c+1]+=FS[c];
+    const tmp=[]; for(let c=0;c<nc;c++){ if(head[c]<0) continue; tmp.length=0; for(let j=head[c];j>=0;j=nxt[j]) tmp.push(j);
+      if(tmp.length>1) tmp.sort((p,q)=>zf[p]-zf[q]); let o=FS[c]; for(const j of tmp){ oF[o]=zf[j]; oC[o]=zc[j]; oW[o]=wb[j]; oT[o]=tf[j]; o++; } }
+    return {r:{FS:FS.buffer,ZF:oF.buffer,ZC:oC.buffer,WB:oW.buffer,TF:oT.buffer,nts,tin,tall,n:m,seeds:ns,grown:n-ns,ext:ext2,slv,nrock,nwall}}; },
+  /* úrovne a kotvy blany. SEC: 0 = úroveň, 1/2 = vedľajšie vrecko nad/pod hlavnou úrovňou (celé strop/podlaha).
+     FX: 0 = voľný uzol, 1 = kotva (okraj pôdorysu), 2 = vrecko. MV = výška blany. */
+  sheet(S,a){ const FS=new Uint32Array(a.FS), ZF=new Float32Array(a.ZF), ZC=new Float32Array(a.ZC), WB=new Uint8Array(a.WB), TF=new Uint8Array(a.TF), g=a.g, nx=g.nx, ny=g.ny, nc=nx*ny, n=FS[nc], c=g.c;
+    const mk=(b)=>a.shared?new SharedArrayBuffer(b):new ArrayBuffer(b), Dc=Math.max(1,Math.round(a.D/c)), Sc=Math.max(1,Math.round(a.s/c)), N1=Math.max(1,n);
+    const CEL=new Int32Array(N1); for(let cl=0;cl<nc;cl++) for(let q=FS[cl];q<FS[cl+1];q++) CEL[q]=cl;
+    const DX=[1,-1,0,0], DY=[0,0,1,-1], OFF=[1,-1,nx,-nx];
+    const nbc=(q,d)=>{ const cl=CEL[q], x=cl%nx, y=(cl-x)/nx, xx=x+DX[d], yy=y+DY[d]; return (xx<0||yy<0||xx>=nx||yy>=ny)?-1:cl+OFF[d]; };
+    const ovl=(q,j)=>Math.min(ZC[q],ZC[j])-Math.max(ZF[q],ZF[j]), cov=(q)=>FS[CEL[q]+1]-FS[CEL[q]]>1;
+    const SEC=new Uint8Array(mk(N1)), NB=new Int32Array(mk(16*N1)).fill(-1), FX=new Uint8Array(mk(N1)), MV=new Float32Array(mk(4*N1));
+    // 1. platne: hornina medzi dvoma úsekmi vzduchu nad sebou (q pod ňou, q+1 nad ňou); susedné platne tvoria jeden jazyk, policu, most alebo balvan
+    const reg=new Int32Array(N1).fill(-1), ord=new Int32Array(N1), dep=new Int32Array(N1), bq=new Int32Array(N1), stp=new Int32Array(N1).fill(-1), rs=[]; let op=0;
+    const slab=(q)=>q+1<FS[CEL[q]+1];
+    for(let q0=0;q0<n;q0++){ if(reg[q0]>=0||!slab(q0)) continue; const id=rs.length, st=op; reg[q0]=id; ord[op++]=q0;
+      for(let t=st;t<op;t++){ const q=ord[t]; for(let d=0;d<4;d++){ const b=nbc(q,d); if(b<0) continue;
+        for(let j=FS[b];j+1<FS[b+1];j++) if(reg[j]<0&&ovl(q,j)>0&&ovl(q+1,j+1)>0){ reg[j]=id; ord[op++]=j; } } }
+      rs.push({id,st,en:op}); }
+    // 2. plytká platňa, ktorú vzduch obteká: tenšia vrstva (pod ňou alebo nad ňou), ktorá nevedie inam, je vrecko
+    let nSec=0, nPk=0;
+    const rf=new Int32Array(N1);
+    // vrstva platne (0 spodná, 1 horná) nikam nevedie, ak z nej (až na pár miest) nevedie cesta ďalej než D inak než cez vzduch spájajúci obe vrstvy
+    const og=new Int32Array(N1), ef=new Uint8Array(N1);
+    const dead=(R,ly)=>{ const sid=R.id*2+ly; let b0=0, b1=0, mE=0, f0=0, esc=0;
+      for(let t=R.st;t<R.en;t++) stp[ord[t]+ly]=sid;
+      for(let t=R.st;t<R.en;t++){ const u=ord[t]+ly, ref=ord[t]+1-ly; for(let d=0;d<4;d++){ const b=nbc(u,d); if(b<0) continue;
+        for(let j=FS[b];j<FS[b+1];j++){ if(stp[j]===sid||!(ovl(u,j)>0)) continue; if(ovl(ref,j)>0){ mE++; continue; }
+          stp[j]=sid; dep[j]=1; rf[j]=ref; og[j]=f0; ef[f0++]=0; bq[b1++]=j; } } }
+      while(b0<b1){ const v=bq[b0++]; if(dep[v]>Dc){ if(!ef[og[v]]){ ef[og[v]]=1; esc++; } continue; }
+        for(let d=0;d<4;d++){ const b=nbc(v,d); if(b<0) continue;
+          for(let j=FS[b];j<FS[b+1];j++) if(stp[j]!==sid&&ovl(v,j)>0&&!(ovl(rf[v],j)>0)){ stp[j]=sid; dep[j]=dep[v]+1; rf[j]=rf[v]; og[j]=og[v]; bq[b1++]=j; } } }
+      return esc<=0.15*(mE+f0); };
+    for(const R of rs){ let b0=0, b1=0, mx=0, vLo=0, vUp=0, tLo=false, tUp=false;
+      for(let t=R.st;t<R.en;t++){ const q=ord[t], p=q+1; dep[q]=-1; vLo+=ZC[q]-ZF[q]; vUp+=ZC[p]-ZF[p]; if(TF[q]) tLo=true; if(TF[p]) tUp=true; let mg=false;
+        for(let d=0;d<4&&!mg;d++){ const b=nbc(q,d); if(b<0) continue; for(let j=FS[b];j<FS[b+1];j++) if(ovl(q,j)>0&&ovl(p,j)>0){ mg=true; break; } }   // sused spája obe vrstvy: okraj platne
+        if(mg){ dep[q]=0; bq[b1++]=q; } }
+      if(!b1) continue;
+      while(b0<b1){ const q=bq[b0++]; if(dep[q]>mx) mx=dep[q]; for(let d=0;d<4;d++){ const b=nbc(q,d); if(b<0) continue;
+        for(let j=FS[b];j+1<FS[b+1];j++) if(reg[j]===R.id&&dep[j]<0&&ovl(q,j)>0&&ovl(q+1,j+1)>0){ dep[j]=dep[q]+1; bq[b1++]=j; } } }
+      if(mx>1.3*Dc) continue;
+      const eLo=!tLo&&dead(R,0), eUp=!tUp&&dead(R,1); if(!eLo&&!eUp) continue;   // kadiaľ išiel skener, tam je chodba, nie vrecko
+      const low=eLo&&(!eUp||vLo<=vUp); nPk++;
+      for(let t=R.st;t<R.en;t++){ const u=ord[t]+(low?0:1); if(!SEC[u]){ SEC[u]=low?2:1; FX[u]=2; nSec++; } } }
+    // 3. susedia v rámci úrovní (najväčší prekryv) a ostrovy (stĺpy, malé diery), ktoré sa neberú ako okraj
+    for(let q=0;q<n;q++){ if(SEC[q]) continue; for(let d=0;d<4;d++){ const b=nbc(q,d); if(b<0) continue; let best=-1, bo=0;
+      for(let j=FS[b];j<FS[b+1];j++){ if(SEC[j]) continue; const o=ovl(q,j); if(o>bo){ bo=o; best=j; } } NB[4*q+d]=best; } }
+    const E=new Uint8Array(nc), stk=new Int32Array(nc); let sp=0;
+    for(let cl=0;cl<nc;cl++){ let has=false; for(let q=FS[cl];q<FS[cl+1];q++) if(!SEC[q]){ has=true; break; } E[cl]=has?0:1; }
+    const fl=(seed,val,lim)=>{ let k=0; sp=0; stk[sp++]=seed; E[seed]=val; while(k<sp){ const cl=stk[k++], x=cl%nx, y=(cl-x)/nx;
+        if(x>0&&E[cl-1]===1){ E[cl-1]=val; stk[sp++]=cl-1; } if(x<nx-1&&E[cl+1]===1){ E[cl+1]=val; stk[sp++]=cl+1; }
+        if(y>0&&E[cl-nx]===1){ E[cl-nx]=val; stk[sp++]=cl-nx; } if(y<ny-1&&E[cl+nx]===1){ E[cl+nx]=val; stk[sp++]=cl+nx; } }
+      if(lim&&sp<=lim) for(let i=0;i<sp;i++) E[stk[i]]=3; };
+    for(let x=0;x<nx;x++){ if(E[x]===1) fl(x,2,0); if(E[(ny-1)*nx+x]===1) fl((ny-1)*nx+x,2,0); }
+    for(let y=0;y<ny;y++){ if(E[y*nx]===1) fl(y*nx,2,0); if(E[y*nx+nx-1]===1) fl(y*nx+nx-1,2,0); }
+    for(let cl=0;cl<nc;cl++) if(E[cl]===1) fl(cl,4,Dc*Dc);
+    // 4. vzdialenosť od okraja pôdorysu (stena bez suseda); pred = cesta k okraju
+    const dist=new Int32Array(N1).fill(-1), pred=new Int32Array(N1).fill(-1); let b0=0, b1=0, nSrc=0;
+    for(let q=0;q<n;q++){ if(SEC[q]) continue; let src=false;
+      for(let d=0;d<4&&!src;d++){ if(NB[4*q+d]>=0) continue; const b=nbc(q,d); if(b>=0&&E[b]===3) continue; const w=WB[q]; if(((w>>(4+d))&1)&&!((w>>d)&1)) continue; src=true; }
+      if(src){ dist[q]=0; bq[b1++]=q; nSrc++; } }
+    while(b0<b1){ const q=bq[b0++]; for(let d=0;d<4;d++){ const j=NB[4*q+d]; if(j>=0&&dist[j]<0){ dist[j]=dist[q]+1; pred[j]=q; bq[b1++]=j; } } }
+    // 5. kotvy: uzly vo vzdialenosti s od okraja (alebo hrebeň užšej chodby), kde sa vzduch smerom k okraju zužuje
+    const own=new Int32Array(N1).fill(-1), GZ=new Float32Array(N1); let nAn=0; b0=b1=0;
+    const mid=(q)=>(ZF[q]+ZC[q])*0.5;
+    for(let q=0;q<n;q++){ if(SEC[q]||dist[q]<0) continue; const dR=dist[q]; if(dR>Sc||dR===0) continue;
+      if(dR<Sc){ let deeper=false; for(let d=0;d<4;d++){ const j=NB[4*q+d]; if(j>=0&&dist[j]>dR){ deeper=true; break; } } if(deeper) continue; }
+      let qh=q; const dh=dR>>1; for(let k=dR;k>dh&&pred[qh]>=0;k--) qh=pred[qh];
+      const hR=ZC[q]-ZF[q], conf=1-(ZC[qh]-ZF[qh])/hR; if(!(conf>=a.tau)) continue;
+      let gz=(mid(qh)-mid(q))/(dR-dh); const gm=3*c; if(gz>gm) gz=gm; else if(gz<-gm) gz=-gm;
+      own[q]=q; GZ[q]=gz; FX[q]=1; MV[q]=mid(q); bq[b1++]=q; nAn++; }
+    while(b0<b1){ const u=bq[b0++], R=own[u]; for(let d=0;d<4;d++){ const j=NB[4*u+d]; if(j>=0&&own[j]<0&&dist[j]>=0&&dist[j]<dist[u]){ own[j]=R; FX[j]=1; MV[j]=mid(R)+GZ[R]*(dist[R]-dist[j]); bq[b1++]=j; } } }
+    // 6. počiatočný odhad voľných uzlov: hodnota najbližšej kotvy, inak stred výšky
+    b0=b1=0; for(let q=0;q<n;q++){ stp[q]=-1; if(FX[q]===1){ stp[q]=0; bq[b1++]=q; } }
+    while(b0<b1){ const u=bq[b0++]; for(let d=0;d<4;d++){ const j=NB[4*u+d]; if(j>=0&&stp[j]<0&&!FX[j]){ stp[j]=0; MV[j]=MV[u]; bq[b1++]=j; } } }
+    // medze blany: vlastný úsek vzduchu; uzol na okraji (chýba mu sused) býva orezaný stenou, preto berie aj rozsah susedov
+    const LO=new Float32Array(mk(4*N1)), HI=new Float32Array(mk(4*N1)); let nFree=0;
+    for(let q=0;q<n;q++){ if(SEC[q]) continue; let lo=ZF[q], hi=ZC[q], edge=false; for(let d=0;d<4;d++) if(NB[4*q+d]<0){ edge=true; break; }
+      if(edge) for(let d=0;d<4;d++){ const j=NB[4*q+d]; if(j>=0){ if(ZF[j]<lo) lo=ZF[j]; if(ZC[j]>hi) hi=ZC[j]; } }
+      const e=Math.min(0.05,0.3*(hi-lo)); LO[q]=lo+e; HI[q]=hi-e;
+      if(FX[q]) continue; nFree++; let v=stp[q]<0?mid(q):MV[q]; if(v<LO[q]) v=LO[q]; else if(v>HI[q]) v=HI[q]; MV[q]=v; }
+    const DS=new Int32Array(mk(4*N1)); DS.set(dist); let mxd=1; for(let q=0;q<n;q++) if(dist[q]>mxd) mxd=dist[q];
+    return {r:{SEC:SEC.buffer,NB:NB.buffer,FX:FX.buffer,MV:MV.buffer,LO:LO.buffer,HI:HI.buffer,DS:DS.buffer,nSec,nPk,nSlab:rs.length,nSrc,nAn,nFree,mxd}}; },
+  sor(S,a){ const LO=new Float32Array(a.LO), HI=new Float32Array(a.HI), NB=new Int32Array(a.NB), FX=new Uint8Array(a.FX), MV=new Float32Array(a.MV), w=a.w; let mx=0;
+    for(let it=0;it<a.it;it++){ mx=0;
+      for(let q=a.q0;q<a.q1;q++){ if(FX[q]) continue; let s=0, k=0;
+        for(let d=0;d<4;d++){ const j=NB[4*q+d]; if(j>=0){ s+=MV[j]; k++; } } if(!k) continue;
+        const lo=LO[q], hi=HI[q], m0=MV[q]; let v=m0+w*(s/k-m0); if(v<lo) v=lo; else if(v>hi) v=hi;
+        const dl=v>m0?v-m0:m0-v; if(dl>mx) mx=dl; MV[q]=v; } }
+    return {r:mx}; },
+  /* body: najbližší úsek vzduchu; nad blanou strop (1), pod ňou podlaha (2), vo vrecku podľa vrecka */
+  cfb(S,a){ const X=S.X, M=S.M, K=S.K, FS=new Uint32Array(a.FS), ZF=new Float32Array(a.ZF), ZC=new Float32Array(a.ZC), MV=new Float32Array(a.MV), SEC=new Uint8Array(a.SEC);
+    const g=a.g, nx=g.nx, ny=g.ny, ic=g.ic, c=g.c, Rm=a.R, Rd=a.Rd; let n0=0;
+    for(let i=a.a,o=a.a*3;i<a.b;i++,o+=3){ if(M[i]>=2) continue; const z=X[o+2], ix=Math.floor((X[o]-g.x0)*ic), iy=Math.floor((X[o+1]-g.y0)*ic); let best=1e9, bn=-1;
+      for(let k=0;k<=Rm&&(k-0.5)*c<best;k++){ const dh=k>0?(k-0.5)*c:0, d2=dh*dh;
+        for(let yy=iy-k;yy<=iy+k;yy++){ if(yy<0||yy>=ny) continue; const step=(k===0||yy===iy-k||yy===iy+k)?1:2*k;
+          for(let xx=ix-k;xx<=ix+k;xx+=step){ if(xx<0||xx>=nx) continue; const cl=yy*nx+xx;
+            for(let q=FS[cl],qe=FS[cl+1];q<qe;q++){ const dv=z<ZF[q]?ZF[q]-z:z>ZC[q]?z-ZC[q]:0, ds=Math.sqrt(d2+dv*dv); if(ds<best){ best=ds; bn=q; } } } } }
+      let cl=0; if(bn>=0&&best<=Rd){ const sc=SEC[bn]; cl=sc?sc:(z>=MV[bn]?1:2); } else n0++;
+      K[i]=cl; }
+    return {r:n0}; },
   selClass(S,a){ const M=S.M, K=S.K, cv=a.cv, cls=a.cls, R=[0,0,0,0,0];
     for(let i=a.a;i<a.b;i++){ let v=M[i]; if(v>=2) continue; const k=K[i];
       if((cv>>k)&1){ const nv=k===cls?1:0; if(nv!==v){ M[i]=nv; v=nv; } }
@@ -403,7 +608,7 @@ const tick=()=>new Promise((r)=>setTimeout(r,0));
 /* ============ načítanie ============ */
 function freeData(){
   if(D.chunks) for(const ch of D.chunks){ gl.deleteBuffer(ch.bx); if(ch.bc) gl.deleteBuffer(ch.bc); gl.deleteBuffer(ch.bm); gl.deleteBuffer(ch.bk); gl.deleteVertexArray(ch.vao); }
-  $("bCf").disabled=true; freeModel();
+  $("bCf").disabled=true; freeModel(); freeTraj();
   if(pool) pool.close(); pool=null; MS=[]; D={n:0}; nextOp=3; undo=[];
 }
 async function openFile(file){
@@ -476,7 +681,8 @@ async function openFile(file){
 }
 function updInfo(){ if(!D.n){ $("info").textContent="Žiadne mračno."; return; }
   $("info").textContent=D.infoText+(D.cfText?"\n"+D.cfText:"")+`\nzostáva: ${fN(D.alive)} · zmazaných: ${fN(D.n-D.alive)} · vybraných: ${fN(D.sel)}${undo.length?` · krokov späť: ${undo.length}`:""}`+
-    (D.cls[1]+D.cls[2]?`\nstrop: ${fN(D.cls[1])} · podlaha: ${fN(D.cls[2])} · nezaradené: ${fN(D.cls[0])}`:""); }
+    (D.cls[1]+D.cls[2]?`\nstrop: ${fN(D.cls[1])} · podlaha: ${fN(D.cls[2])} · nezaradené: ${fN(D.cls[0])}`:"")+
+    (D.traj?`\ntrajektória: ${D.traj.name} · ${fN(D.traj.raw)} polôh · ${f1(D.traj.len,1)} m`:""); }
 
 /* ============ WebGL ============ */
 const cv=$("gl"), ov=$("ov"), octx=ov.getContext("2d");
@@ -589,6 +795,8 @@ function render(mv){
   setUniforms(PP,m); lastDrawn=drawPoints(m,f);
   if(ui.mdl&&D.mdl){ gl.useProgram(PV.p); gl.uniformMatrix4fv(PV.u.mvp,false,new Float32Array(m)); gl.uniform1f(PV.u.ps,Math.max(2,ui.ps*1.5)*(window.devicePixelRatio||1));
     gl.bindVertexArray(D.mdl.vao); gl.drawArrays(gl.POINTS,0,D.mdl.n); gl.bindVertexArray(null); }
+  if(D.traj&&$("trShow").checked){ gl.useProgram(PL.p); gl.uniformMatrix4fv(PL.u.mvp,false,new Float32Array(m)); gl.uniform3f(PL.u.col,0.35,1,0.45);
+    gl.bindVertexArray(D.traj.vao); gl.drawArrays(gl.LINE_STRIP,0,D.traj.n); gl.bindVertexArray(null); }
   if(ui.boxShow) drawBox(m);
   const now=performance.now(); lastM=m; drawOverlay(m); if(now<centerUntil){ clearTimeout(centerT); centerT=setTimeout(()=>req(),centerUntil-now+30); }
   $("bar").textContent=`kreslených ${fN(lastDrawn)} bodov${f<1?` (preriedené ${f1(f*100,0)} %)`:""} · v zábere ${fN(V)} · zostáva ${fN(D.alive)} · vybraných ${fN(D.sel)}`+
@@ -755,8 +963,10 @@ async function classifyCols(cell,alg){
 /* model jaskyne: voxely → zacelenie → lúče v 26 smeroch → vzduch → stĺpce vzduchu → súvislé časti → body */
 const DIRS=[]; for(let dz=-1;dz<=1;dz++) for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++) if(dx||dy||dz) DIRS.push([dx,dy,dz]);
 const NMAX=200e6;
-async function classifyModel(cell){
-  const r=+$("cfR").value, T=Math.max(1,Math.min(26,Math.round(+$("cfE").value)||15)), bb=D.bb, P=r+2, t0=performance.now(), tm=[];
+async function aliveBB(){ const R=await run("bbx",(i)=>rg(i)), b=[0,1,2].map((k)=>Math.min(...R.map((v)=>v[k]))).concat([3,4,5].map((k)=>Math.max(...R.map((v)=>v[k]))));
+  if(!(b[3]>=b[0])) throw new Error("žiadne body"); return b; }
+async function buildAir(cell){
+  const r=+$("cfR").value, T=Math.max(1,Math.min(26,Math.round(+$("cfE").value)||15)), bb=await aliveBB(), P=r+2, t0=performance.now(), tm=[];
   let h=cell, nx, ny, nz;
   for(;;){ nx=Math.ceil((bb[3]-bb[0])/h)+2*P; ny=Math.ceil((bb[4]-bb[1])/h)+2*P; nz=Math.ceil((bb[5]-bb[2])/h)+2*P; if(nx*ny*nz<=NMAX&&nz<65000) break; h*=1.05; }
   const Sl=nx*ny, N=Sl*nz, g={x0:bb[0]-P*h,y0:bb[1]-P*h,z0:bb[2]-P*h,ih:1/h,nx,ny,nz};
@@ -811,14 +1021,81 @@ async function classifyModel(cell){
   const RZ2=new Uint16Array(alloc(Math.max(1,n2)*4)); let kept=0, keptVol=0;
   for(let i=0,q=0;i<nR;i++) if(vol[par[i]]>=vmin){ RZ2[2*q]=RZ[2*i]; RZ2[2*q+1]=RZ[2*i+1]; q++; }
   for(let i=0;i<nR;i++) if(par[i]===i&&vol[i]>=vmin){ kept++; keptVol+=vol[i]; }
-  await lap("triedenie bodov");
-  await run("cfm",(i)=>({...rg(i),g,CS:CS2.buffer,RZ:RZ2.buffer,R:r+3}));
   tm.push(performance.now());
-  buildModelVis(g,h,r,CS2,RZ2); D.air={g,h,r,CS:CS2,RZ:RZ2};
-  const ts=(a,b)=>f1((tm[b]-tm[a])/1000,2);
-  return `model jaskyne: voxel ${f1(h,3)} m · ${fN(N/1e6)} mil. voxelov · zacelenie ${r} · uzavretosť ${T}/26\n`+
-    `vzduch ${fN(keptVol*h*h*h)} m³ v ${kept} časti${kept===1?"":"ach"} · vnútro predmetov ${nObj} · drobných vreciek ${nComp-kept-nObj}\n`+
-    `čas ${f1((tm[tm.length-1]-t0)/1000,2)} s (lúče ${ts(r>0?2:1,r>0?3:2)} s · body ${ts(tm.length-2,tm.length-1)} s)`;
+  let trTxt=""; if(D.traj){ const TP=D.traj.P; let tin=0, tn=0;   // koľko polôh skenera leží vo vzduchu hrubého modelu
+    for(let i=0;i<TP.length;i+=3){ const ix=Math.floor((TP[i]-g.x0)*g.ih), iy=Math.floor((TP[i+1]-g.y0)*g.ih), iz=Math.floor((TP[i+2]-g.z0)*g.ih); if(ix<0||iy<0||iz<0||ix>=nx||iy>=ny||iz>=nz) continue; tn++;
+      const c=iy*nx+ix; for(let q=CS2[c];q<CS2[c+1];q++) if(iz>=RZ2[2*q]&&iz<=RZ2[2*q+1]){ tin++; break; } }
+    trTxt=` · trajektória v ňom na ${tn?f1(tin/tn*100,0):"–"} %`; }
+  return {g,h,r,bb,CS:CS2,RZ:RZ2,
+    txt:`model jaskyne: voxel ${f1(h,3)} m · ${fN(N/1e6)} mil. voxelov · zacelenie ${r} · uzavretosť ${T}/26\n`+
+      `vzduch ${fN(keptVol*h*h*h)} m³ v ${kept} časti${kept===1?"":"ach"} · vnútro predmetov ${nObj} · drobných vreciek ${nComp-kept-nObj}${trTxt}`};
+}
+async function classifyModel(cell){
+  const t0=performance.now(), a=await buildAir(cell), t1=performance.now();
+  setBusy("Model: triedenie bodov…"); await tick();
+  await run("cfm",(i)=>({...rg(i),g:a.g,CS:a.CS.buffer,RZ:a.RZ.buffer,R:a.r+3}));
+  buildModelVis(a.g,a.h,a.r,a.CS,a.RZ); D.air=a;
+  return a.txt+`\nčas ${f1((performance.now()-t0)/1000,2)} s (model ${f1((t1-t0)/1000,2)} s)`;
+}
+/* jemný úrovňový model: zoradené výšky bodov po bunkách pôdorysu → zárodky z hrubého vzduchu → rast k stenám */
+function cellRanges(CS,nc,tot){ const R=[]; let c0=0; for(let w=0;w<NW;w++){ const c1=w===NW-1?nc:Math.max(c0,Math.min(nc,lowerBound(CS,tot*(w+1)/NW,c0,nc))); R.push([c0,c1]); c0=c1; } return R; }
+async function buildLevels(air,c0){
+  const bb=air.bb, PAD=2; let c=c0, nx, ny;
+  for(;;){ nx=Math.ceil((bb[3]-bb[0])/c)+2*PAD; ny=Math.ceil((bb[4]-bb[1])/c)+2*PAD; if(nx*ny<=40e6) break; c*=1.1; }
+  const nc=nx*ny, g={x0:bb[0]-PAD*c,y0:bb[1]-PAD*c,ic:1/c,c,nx,ny};
+  setBusy("Úrovne: výšky bodov po bunkách…"); await tick();
+  const hs=await run("zh",(i)=>({...rg(i),g}));
+  const CS=new Uint32Array(alloc((nc+1)*4)), offs=hs.map(()=>new Uint32Array(nc)); let acc=0, occ=0;
+  for(let k=0;k<nc;k++){ CS[k]=acc; const a0=acc; for(let w=0;w<hs.length;w++){ offs[w][k]=acc; acc+=hs[w][k]; } if(acc>a0) occ++; }
+  CS[nc]=acc; if(!acc) throw new Error("žiadne body");
+  const Z=alloc(acc*4);
+  await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"zs",{...rg(i),g,Z,off:offs[i]},[offs[i].buffer])));
+  const hc=new Uint32Array(4097); for(let k=0;k<nc;k++){ const m=CS[k+1]-CS[k]; if(m) hc[Math.min(m,4096)]++; }
+  let med=1; for(let k=1,t=0;k<=4096;k++){ t+=hc[k]; if(t>=occ/2){ med=k; break; } }
+  const g0=Math.max(0.05,24*c/med), dl=Math.max(2*c,0.15);   // medzera musí byť väčšia než náhodné rozstupy bodov na zvislej stene
+  const R=cellRanges(CS,nc,acc); await run("zq",(i)=>({c0:R[i][0],c1:R[i][1],Z,CS:CS.buffer}));
+  let KF=alloc(acc); const lone=(await run("zf",(i)=>({c0:R[i][0],c1:R[i][1],Z,CS:CS.buffer,KF,nx,ny,t0:g0,thr:Math.max(2,0.025*med),rho:0.4}))).reduce((s,v)=>s+v,0);
+
+  setBusy("Úrovne: zárodky z hrubého vzduchu…"); await tick();
+  const G=air.g, SF=new Uint32Array(alloc((nc+1)*4)); let ns=0;
+  for(let iy=0;iy<ny;iy++){ const cy=Math.floor((g.y0+(iy+0.5)*c-G.y0)*G.ih);
+    for(let ix=0;ix<nx;ix++){ const cx=Math.floor((g.x0+(ix+0.5)*c-G.x0)*G.ih), k=iy*nx+ix; SF[k]=ns; const cc=cy*G.nx+cx; ns+=air.CS[cc+1]-air.CS[cc]; } }
+  SF[nc]=ns;
+  const ZF0=alloc(Math.max(1,ns)*4), ZC0=alloc(Math.max(1,ns)*4);
+  await run("seed",(i)=>({c0:R[i][0],c1:R[i][1],Z,CS:CS.buffer,KF,SF:SF.buffer,ZF:ZF0,ZC:ZC0,ACS:air.CS.buffer,ARZ:air.RZ.buffer,g,G,r:air.r}));
+  setBusy("Úrovne: rast k stenám…"); await tick();
+  const L=await exec(0,"grow",{Z,CS:CS.buffer,KF,SF:SF.buffer,ZF:ZF0,ZC:ZC0,g,g0,dl,tk:0.6*g0,wk:0.25*med/(2*c),tr:D.traj?D.traj.P:null,shared:SHARED});
+  return {g,c,g0,dl,med,lone,n:L.n,seeds:L.seeds,grown:L.grown,ext:L.ext,slv:L.slv,nrock:L.nrock,nwall:L.nwall,FS:new Uint32Array(L.FS),ZF:new Float32Array(L.ZF),ZC:new Float32Array(L.ZC),WB:new Uint8Array(L.WB),TF:new Uint8Array(L.TF),nts:L.nts,tin:L.tin,tall:L.tall,Z:new Float32Array(Z),CS};
+}
+async function classifyBlana(cell){
+  const t0=performance.now(), air=await buildAir(cell), t1=performance.now();
+  const L=await buildLevels(air,Math.max(0.02,+$("cfF").value||0.1)), t2=performance.now(), n=L.n;
+  if(!n) throw new Error("jemný model nenašiel vzduch");
+  setBusy("Blana: úrovne a kotvy…"); await tick();
+  const B={FS:L.FS.buffer,ZF:L.ZF.buffer,ZC:L.ZC.buffer};
+  const H=await exec(0,"sheet",{...B,WB:L.WB.buffer,TF:L.TF.buffer,g:L.g,D:Math.max(0,+$("cfD").value||0),s:Math.max(L.c,+$("cfS").value||0.3),tau:0.15,shared:SHARED});
+  setBusy("Blana: napínam…"); await tick();
+  // relaxácia s nadrelaxovaním podľa šírky najširšieho priestoru (vzdialenosť od okraja v bunkách)
+  const qr=(i)=>({q0:Math.floor(i*n/NW),q1:Math.floor((i+1)*n/NW)}), w=Math.min(1.97,2/(1+Math.sin(Math.PI/(2*H.mxd+2)))); let rounds=0, mx=1;
+  while(mx>0.001&&rounds<400){ mx=Math.max(...await run("sor",(i)=>({...qr(i),LO:H.LO,HI:H.HI,NB:H.NB,FX:H.FX,MV:H.MV,w,it:20}))); rounds++;
+    if(rounds%10===0){ setBusy(`Blana: napínam… (${rounds*20} krokov, zmena ${f1(mx*1000,1)} mm)`); await tick(); } }
+  const t3=performance.now(); setBusy("Blana: triedim body…"); await tick();
+  await run("cfb",(i)=>({...rg(i),...B,MV:H.MV,SEC:H.SEC,g:L.g,R:Math.ceil(0.5/L.c),Rd:0.6}));
+  L.Z=null; L.CS=null; D.air=air; D.lvl={...L,SEC:new Uint8Array(H.SEC),FX:new Uint8Array(H.FX),MV:new Float32Array(H.MV),NB:new Int32Array(H.NB),DS:new Int32Array(H.DS),st:H};
+  buildBlanaVis(D.lvl);
+  return air.txt+`\nblana: bunka ${f1(L.c,2)} m · ${fN(n)} úsekov vzduchu, z toho ${fN(L.grown)} dorastených · vreciek ${fN(H.nPk)} · kotiev ${fN(H.nAn)} · medzera od ${f1(L.g0*100,0)} cm`+
+    (D.traj?`\ntrajektória: ${fN(L.tall)} polôh, z nich ${fN(L.tin)} už vo vzduchu modelu, ${fN(L.nts)} nových zárodkov`:"")+"\n"+
+    `čas ${f1((performance.now()-t0)/1000,2)} s (model ${f1((t1-t0)/1000,2)} · úrovne ${f1((t2-t1)/1000,2)} · blana ${f1((t3-t2)/1000,2)} s, ${rounds*20} krokov)`;
+}
+function buildBlanaVis(L){
+  freeModel(); const g=L.g, nx=g.nx, c=g.c, nc=nx*g.ny; let m=0; for(let q=0;q<L.n;q++) if(!L.SEC[q]) m++;
+  const P=new Float32Array(m*3), C=new Uint8Array(m*4); let k=0;
+  for(let cl=0;cl<nc;cl++){ const x=cl%nx, y=(cl-x)/nx; for(let q=L.FS[cl];q<L.FS[cl+1];q++){ if(L.SEC[q]) continue;
+    P[k*3]=g.x0+(x+0.5)*c; P[k*3+1]=g.y0+(y+0.5)*c; P[k*3+2]=L.MV[q]; C.set(L.FX[q]===1?[150,70,230,255]:[215,140,255,255],k*4); k++; } }
+  const vao=gl.createVertexArray(); gl.bindVertexArray(vao);
+  const bp=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,bp); gl.bufferData(gl.ARRAY_BUFFER,P,gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
+  const bc=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,bc); gl.bufferData(gl.ARRAY_BUFFER,C,gl.STATIC_DRAW); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,4,gl.UNSIGNED_BYTE,true,0,0);
+  gl.bindVertexArray(null); D.mdl={vao,bp,bc,n:m};
 }
 function freeModel(){ if(D.mdl){ gl.deleteBuffer(D.mdl.bp); gl.deleteBuffer(D.mdl.bc); gl.deleteVertexArray(D.mdl.vao); D.mdl=null; } }
 function buildModelVis(g,h,r,CS,RZ){
@@ -837,7 +1114,7 @@ async function classify(){
   const cell=Math.max(0.02,+$("cfCell").value||0.2), alg=+$("cfAlg").value;
   setBusy("Strop a podlaha…");
   try{
-    D.cfText=alg===2?await classifyModel(cell):await classifyCols(cell,alg);
+    D.cfText=alg===3?await classifyBlana(cell):alg===2?await classifyModel(cell):await classifyCols(cell,alg);
     sumCounts(await run("maskOp",(i)=>({...rg(i),kind:6})));
     uploadClass(); ui.mode=2; $("colMode").value="2";
     updInfo(); req();
@@ -856,8 +1133,44 @@ async function classAct(k){
 $("bCf").addEventListener("click",classify);
 document.querySelectorAll("[data-c]").forEach((b)=>b.addEventListener("click",()=>classAct(b.dataset.c)));
 document.querySelectorAll(".cv").forEach((c)=>c.addEventListener("change",()=>{ ui.cv=0; document.querySelectorAll(".cv").forEach((x)=>{ if(x.checked) ui.cv|=1<<+x.dataset.k; }); req(); }));
-$("cfAlg").addEventListener("change",(e)=>{ const v=e.target.value; for(const [cl,a] of [[".cfA","0"],[".cfB","1"],[".cfC","2"]]) document.querySelectorAll(cl).forEach((x)=>x.hidden=v!==a); });
+$("cfAlg").addEventListener("change",(e)=>{ const v=e.target.value; for(const [cl,a] of [[".cfA","0"],[".cfB","1"],[".cfC","23"],[".cfD","3"],[".cfM","2"]]) document.querySelectorAll(cl).forEach((x)=>x.hidden=!a.includes(v)); });
 $("mdlShow").addEventListener("change",(e)=>{ ui.mdl=e.target.checked; req(); });
+
+/* ============ trajektória skenera ============ */
+function freeTraj(){ if(D.traj){ gl.deleteBuffer(D.traj.buf); gl.deleteVertexArray(D.traj.vao); D.traj=null; } }
+async function openTraj(file){
+  if(!file||busy) return; if(!D.n){ alert("Najprv otvor mračno."); return; }
+  setBusy("Čítam trajektóriu…");
+  try{
+    const C=[]; let ncol=3;
+    if(/\.ply$/i.test(file.name)){ const H=await plyHeader(file);
+      if(H.ascii){ const L=(await file.slice(H.vstart).text()).split(/\r?\n/), k=[H.x,H.y,H.z].map((q)=>H.V.props.indexOf(q));
+        for(let i=0;i<H.V.n&&i<L.length;i++){ const w=L[i].trim().split(/\s+/); C.push(+w[k[0]],+w[k[1]],+w[k[2]]); } }
+      else { const dv=new DataView(await file.slice(H.vstart,H.vstart+H.V.n*H.V.stride).arrayBuffer()), rd=(q,o)=>{ const [fn,sz]=TY[q.t]; return sz===1?dv["get"+fn](o+q.o):dv["get"+fn](o+q.o,H.le); };
+        for(let i=0;i<H.V.n;i++){ const o=i*H.V.stride; C.push(rd(H.x,o),rd(H.y,o),rd(H.z,o)); } } }
+    else { let ix=null; const cand=[[],[]];
+      for(const ln of (await file.text()).split(/\r?\n/)){ const t=ln.trim(); if(!t) continue;
+        if(/^[%#a-zA-Z]/.test(t)){ const w=t.replace(/^[%#]\s*/,"").toLowerCase().split(/[\s,;]+/), a=w.indexOf("x"), b=w.indexOf("y"), c=w.indexOf("z"); if(a>=0&&b>=0&&c>=0) ix=[a,b,c]; continue; }
+        const w=t.split(/[\s,;]+/); if(w.length<3) continue;
+        if(ix) C.push(+w[ix[0]],+w[ix[1]],+w[ix[2]]); else { cand[0].push(+w[0],+w[1],+w[2]); if(w.length>3) cand[1].push(+w[1],+w[2],+w[3]); } }
+      if(!ix){ const inb=(A)=>{ let k=0; for(let i=0;i<A.length;i+=3) if([0,1,2].every((d)=>A[i+d]-D.org[d]>=D.bb[d]-1&&A[i+d]-D.org[d]<=D.bb[3+d]+1)) k++; return k; };   // bez hlavičky: x y z alebo čas x y z – čo lepšie sedí do mračna
+        for(const v of (inb(cand[1])>inb(cand[0])?cand[1]:cand[0])) C.push(v); } }
+    const raw=C.length/3, P=[]; let len=0, inside=0, lx=NaN, ly=0, lz=0, px=NaN, py=0, pz=0;
+    for(let i=0;i<C.length;i+=3){ const x=C[i]-D.org[0], y=C[i+1]-D.org[1], z=C[i+2]-D.org[2]; if(!isFinite(x+y+z)) continue;
+      if(!isNaN(px)) len+=Math.hypot(x-px,y-py,z-pz); px=x; py=y; pz=z;
+      if(x>=D.bb[0]&&x<=D.bb[3]&&y>=D.bb[1]&&y<=D.bb[4]&&z>=D.bb[2]&&z<=D.bb[5]) inside++;
+      if(isNaN(lx)||Math.hypot(x-lx,y-ly,z-lz)>=0.05){ P.push(x,y,z); lx=x; ly=y; lz=z; } }
+    if(P.length<6) throw new Error("v súbore nie sú polohy x y z");
+    freeTraj(); const A=new Float32Array(P), vao=gl.createVertexArray(), buf=gl.createBuffer();
+    gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER,buf); gl.bufferData(gl.ARRAY_BUFFER,A,gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0); gl.bindVertexArray(null);
+    D.traj={P:A,n:A.length/3,raw,len,name:file.name,vao,buf,inside};
+    if(inside<0.5*raw) alert(`Len ${fN(inside)} z ${fN(raw)} polôh trajektórie leží v rozsahu mračna – súradnice asi nesedia.`);
+    updInfo(); req();
+  }catch(err){ console.error(err); alert("Trajektória: "+err.message); }
+  finally{ setBusy(""); }
+}
+$("fTraj").addEventListener("change",(e)=>{ openTraj(e.target.files[0]); e.target.value=""; });
+$("trShow").addEventListener("change",()=>req());
 
 /* ============ export PLY ============ */
 async function exportPly(){
