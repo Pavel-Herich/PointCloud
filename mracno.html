@@ -45,13 +45,14 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
 <body>
 <div id="app">
 <aside>
-  <h1><a href="index.html">PointCloud</a> <span class="k">· etapa 2b</span></h1>
+  <h1><a href="index.html">PointCloud</a> <span class="k">· etapa 2c</span></h1>
 
   <section>
     <h2>Súbor</h2>
     <div class="row"><label class="btn pri">Otvoriť PLY…<input type="file" id="fOpen" accept=".ply" hidden></label><span class="k">alebo pusti súbor do okna</span></div>
     <div class="row">
       <select id="expFmt" title="Typ súradníc v uloženom súbore"><option value="f">float32</option><option value="d">float64</option></select>
+      <select id="expDec" title="Uložiť len každý N-tý bod (menší súbor, napr. na poslanie vzorky)"><option value="1">všetky</option><option value="2">každý 2.</option><option value="5">každý 5.</option><option value="10">každý 10.</option><option value="20">každý 20.</option><option value="50">každý 50.</option></select>
       <button id="bExp" disabled>Uložiť PLY…</button>
     </div>
     <div class="row"><label class="btn" title="Trajektória skenera (GeoSLAM *_traj.txt alebo PLY) v súradniciach mračna: istý vzduch pre model jaskyne">Trajektória…<input type="file" id="fTraj" accept=".txt,.ply,.csv,.xyz" hidden></label>
@@ -61,9 +62,11 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
 
   <section>
     <h2>Zobrazenie</h2>
-    <div class="row"><label class="k">farba <select id="colMode"><option value="0">RGB</option><option value="1">výška</option><option value="2">strop / podlaha</option></select></label>
+    <div class="row"><label class="k">farba <select id="colMode"><option value="0">RGB</option><option value="1">výška</option><option value="2">strop / podlaha</option><option value="3" disabled>sklon (normály)</option></select></label>
       <label class="k">bod <input type="range" id="ps" min="1" max="6" step="0.5" value="1.5"></label></div>
     <div class="row"><label class="k">body pri pohybe <select id="budget"><option value="5">5 mil.</option><option value="10">10 mil.</option><option value="20" selected>20 mil.</option><option value="40">40 mil.</option><option value="80">80 mil.</option></select></label></div>
+    <div class="row"><label class="k" title="Osvetlenie od kamery podľa normál zo súboru"><input type="checkbox" id="nShade" disabled> tieňovať</label>
+      <label class="k" title="Nekreslí body odvrátené od kamery – do chodby vidno zvonka cez prednú stenu. Normály musia smerovať do vzduchu (ku skeneru)."><input type="checkbox" id="nCull" disabled> priehľad cez prednú stenu</label></div>
     <div class="row"><button data-v="fit" title="F">Celé</button><button data-v="top" title="T">Zhora</button><button data-v="py">Pohľad +Y</button><button data-v="px">Pohľad +X</button></div>
   </section>
 
@@ -168,6 +171,10 @@ function KERNELS(){
     return (x,y,z)=>{ let ix=((x-mx)*gi)|0, iy=((y-my)*gi)|0, iz=((z-mz)*gi)|0;
       if(ix<0)ix=0; else if(ix>=nx)ix=nx-1; if(iy<0)iy=0; else if(iy>=ny)iy=ny-1; if(iz<0)iz=0; else if(iz>=nz)iz=nz-1;
       return (iz*ny+iy)*nx+ix; }; };
+  const octE=(x,y,z)=>{ const s=Math.abs(x)+Math.abs(y)+Math.abs(z); if(!(s>0)) return 0; let u=x/s, v=y/s;
+    if(z<0){ const tu=(1-Math.abs(v))*(u<0?-1:1), tv=(1-Math.abs(u))*(v<0?-1:1); u=tu; v=tv; } return (Math.round(u*127)&255)|((Math.round(v*127)&255)<<8); };
+  const octD=(e,o)=>{ let u=((e<<24)>>24)/127, v=((e<<16)>>24)/127; const z=1-Math.abs(u)-Math.abs(v); if(z<0){ u+=u>=0?z:-z; v+=v>=0?z:-z; }
+    const l=Math.hypot(u,v,z)||1; o[0]=u/l; o[1]=v/l; o[2]=z/l; };
   const lb=(A,v,lo,hi)=>{ while(lo<hi){ const m=(lo+hi)>>>1; if(A[m]<v) lo=m+1; else hi=m; } return lo; };
   return {
   async parse(S,a){
@@ -175,13 +182,13 @@ function KERNELS(){
     const mk=(b)=>a.shared?new SharedArrayBuffer(b):new ArrayBuffer(b);
     if(!a.ascii){
       const n=Math.floor((a.end-a.start)/a.stride);
-      S.tX=new Float32Array(mk(n*12)); S.tC=a.col?new Uint8Array(mk(n*4)):null;
-      const body=new Function("dv","m","k","st","X","C","ox","oy","oz",a.loop);
+      S.tX=new Float32Array(mk(n*12)); S.tC=a.col?new Uint8Array(mk(n*4)):null; S.tN=a.nrm?new Int16Array(mk(n*2)):null;
+      const body=new Function("dv","m","k","st","X","C","ox","oy","oz","N","oe",a.loop);
       const rd=a.file.slice(a.start,a.end).stream().getReader(); let rest=null;
       for(;;){ const {done,value}=await rd.read(); if(done) break;
         let buf=value; if(rest){ buf=new Uint8Array(rest.length+value.length); buf.set(rest); buf.set(value,rest.length); }
         const m=Math.min(Math.floor(buf.length/a.stride),n-k);
-        k=body(new DataView(buf.buffer,buf.byteOffset,buf.byteLength),m,k,st,S.tX,S.tC,ox,oy,oz);
+        k=body(new DataView(buf.buffer,buf.byteOffset,buf.byteLength),m,k,st,S.tX,S.tC,ox,oy,oz,S.tN,octE);
         rest=buf.length>m*a.stride?buf.slice(m*a.stride):null; }
     } else {
       const s0=a.first?a.start:a.start-1, ext=Math.min(a.dataEnd,a.end+65536);
@@ -189,25 +196,27 @@ function KERNELS(){
       let p0=0; if(!a.first){ while(p0<raw.length&&raw[p0]!==10) p0++; p0++; }
       let p1=a.end-s0; if(a.end<a.dataEnd){ while(p1<raw.length&&raw[p1-1]!==10) p1++; } else p1=raw.length;
       const L=new TextDecoder().decode(raw.subarray(Math.min(p0,p1),p1)).split("\n"), ix=a.ix;
-      const xs=new Float32Array(L.length*3), cs=a.col?new Uint8Array(L.length*4):null;
+      const xs=new Float32Array(L.length*3), cs=a.col?new Uint8Array(L.length*4):null, ns=a.nrm?new Int16Array(L.length):null;
       for(const ln of L){ const s=ln.trim(); if(!s) continue; const w=s.split(/\s+/);
         const x=+w[ix[0]]-ox, y=+w[ix[1]]-oy, z=+w[ix[2]]-oz;
         if(x<st[0])st[0]=x; if(x>st[3])st[3]=x; if(y<st[1])st[1]=y; if(y>st[4])st[4]=y; if(z<st[2])st[2]=z; if(z>st[5])st[5]=z;
         xs[k*3]=x; xs[k*3+1]=y; xs[k*3+2]=z;
         if(cs){ const c=k*4, sc=a.cscale; cs[c]=Math.max(0,Math.min(255,+w[ix[3]]*sc)); cs[c+1]=Math.max(0,Math.min(255,+w[ix[4]]*sc)); cs[c+2]=Math.max(0,Math.min(255,+w[ix[5]]*sc)); cs[c+3]=255; }
+        if(ns) ns[k]=octE(+w[ix[6]],+w[ix[7]],+w[ix[8]]);
         k++; }
       S.tX=new Float32Array(mk(k*12)); S.tX.set(xs.subarray(0,k*3));
       S.tC=cs?new Uint8Array(mk(k*4)):null; if(cs) S.tC.set(cs.subarray(0,k*4));
+      S.tN=ns?new Int16Array(mk(k*2)):null; if(ns) S.tN.set(ns.subarray(0,k));
     }
     S.tn=k;
     if(a.shared) return {r:{n:k,bb:st}};
-    const r={n:k,bb:st,tX:S.tX,tC:S.tC}, t=[S.tX.buffer]; if(S.tC) t.push(S.tC.buffer); S.tX=S.tC=null; return {r,t};
+    const r={n:k,bb:st,tX:S.tX,tC:S.tC,tN:S.tN}, t=[S.tX.buffer]; if(S.tC) t.push(S.tC.buffer); if(S.tN) t.push(S.tN.buffer); S.tX=S.tC=S.tN=null; return {r,t};
   },
   hist(S,a){ const cell=cellOf(a.g), h=new Uint32Array(a.g.nc), X=S.tX, n=S.tn;
     for(let i=0,o=0;i<n;i++,o+=3) h[cell(X[o],X[o+1],X[o+2])]++;
     return {r:h,t:[h.buffer]}; },
   init(S,a){ S.X=a.X?new Float32Array(a.X):null; S.C32=a.C?new Uint32Array(a.C):null; S.C8=a.C?new Uint8Array(a.C):null; S.M=a.M?new Uint8Array(a.M):null;
-    S.K=a.K?new Uint8Array(a.K):null; S.P=S.CS=null; if(!a.X){ S.tX=S.tC=null; } return {r:1}; },
+    S.K=a.K?new Uint8Array(a.K):null; S.N=a.N?new Int16Array(a.N):null; S.P=S.CS=null; if(!a.X){ S.tX=S.tC=S.tN=null; } return {r:1}; },
   attach(S,a){ S.P=a.P?new Uint32Array(a.P):null; S.CS=a.CS?new Uint32Array(a.CS):null; return {r:1}; },
   colHist(S,a){ const g=a.cg, X=S.X, nx=g.nx, ny=g.ny, mx=g.mn[0], my=g.mn[1], gi=g.inv, h=new Uint32Array(nx*ny);
     for(let i=a.a,o=a.a*3;i<a.b;i++,o+=3){ let ix=((X[o]-mx)*gi)|0, iy=((X[o+1]-my)*gi)|0;
@@ -343,44 +352,64 @@ function KERNELS(){
           // úseky bunky, ktoré do medzery zasahujú, sú ten istý vzduch: slabý okraj zárodku nahradia skutočné body, zvyšné sa zlúčia
           let dup=-1, rock=false; for(let j=head[b],pv=-1;j>=0;j=nxt[j]){ if(Math.min(z2,zc[j])-Math.max(z,zf[j])>0){ if(dup<0) dup=j; else { nxt[pv]=nxt[j]; cel[j]=-1; bad++; if(tf[j]) tf[dup]=1; continue; } }
             else if((z>=zc[j]&&z-zc[j]<tk)||(zf[j]>=z2&&zf[j]-z2<tk)) rock=true; pv=j; }
-          if(dup>=0){ if(z<zf[dup]-1e-4||z2>zc[dup]+1e-4){ if(z<zf[dup]) zf[dup]=z; if(z2>zc[dup]) zc[dup]=z2; ext2++; if(dup<qi) redo.push(dup); } any=true; continue; }
+          const niche=nf[q]||(z2-z)*3<hi-lo;
+          if(dup>=0){ if(z<zf[dup]-1e-4||z2>zc[dup]+1e-4){ if(z<zf[dup]) zf[dup]=z; if(z2>zc[dup]) zc[dup]=z2; ext2++; if(dup<qi) redo.push(dup); } if(!niche) nf[dup]=0; any=true; continue; }
           // nový úsek len vtedy, ak ho od zdroja neoddeľuje stena (vyradené body oboch buniek vo výške prekryvu)
           // a ak nie je hneď nad stropom alebo pod dnom už známeho vzduchu tej istej bunky (to je hornina)
           if(rock){ nrock++; continue; }
           if(rw+lb(Z,o1,sa,ea)-lb(Z,o0,sa,ea)>=Math.max(3,wk*(o1-o0))){ blocked=true; nwall++; continue; }
-          if(n===cap){ cap=Math.ceil(cap*1.5); zf=ext(zf,Float32Array); zc=ext(zc,Float32Array); cel=ext(cel,Int32Array); nxt=ext(nxt,Int32Array); wb=ext(wb,Uint8Array); tf=ext(tf,Uint8Array); }
-          zf[n]=z; zc[n]=z2; cel[n]=b; nxt[n]=head[b]; head[b]=n; n++; any=true; }
+          if(n===cap){ cap=Math.ceil(cap*1.5); zf=ext(zf,Float32Array); zc=ext(zc,Float32Array); cel=ext(cel,Int32Array); nxt=ext(nxt,Int32Array); wb=ext(wb,Uint8Array); tf=ext(tf,Uint8Array); nf=ext(nf,Uint8Array); }
+          zf[n]=z; zc[n]=z2; cel[n]=b; nxt[n]=head[b]; head[b]=n; nf[n]=niche?1:0; n++; any=true; }
         if(!any) wb[q]|=((inside>0||blocked)?1:16)<<d; } };
     // istý vzduch z trajektórie skenera: kde poloha skenera ešte nie je vo vzduchu modelu, vznikne úsek z medzery okolo nej
-    let tf=new Uint8Array(cap), nts=0, tin=0, tall=0;
+    // nf: výklenok – úsek aspoň 3× nižší než jeho zdroj (škára, podtečenie, ale aj medzera medzi bodmi zvislej steny) a všetko, čo z neho vyrástlo
+    let tf=new Uint8Array(cap), nf=new Uint8Array(cap), nts=0, tin=0, tall=0;
     if(a.tr){ const T=a.tr; for(let i=0;i<T.length;i+=3){ const ix=Math.floor((T[i]-g.x0)*g.ic), iy=Math.floor((T[i+1]-g.y0)*g.ic), z=T[i+2]; if(ix<0||iy<0||ix>=nx||iy>=ny) continue; tall++;
         const c=iy*nx+ix; let f=-1; for(let j=head[c];j>=0;j=nxt[j]) if(z>zf[j]&&z<zc[j]){ f=j; break; }
         if(f>=0) tin++; else { const s=CS[c], e=CS[c+1], p=lb(Z,z,s,e); let i0=p-1; while(i0>=s&&!KF[i0]) i0--; let i1=p; while(i1<e&&!KF[i1]) i1++;
           if(i0<s||i1>=e||Z[i1]-Z[i0]<g0) continue; const z1=Z[i0], z2=Z[i1];
           for(let j=head[c],pv=-1;j>=0;j=nxt[j]){ if(Math.min(z2,zc[j])-Math.max(z1,zf[j])>0){ if(f<0) f=j; else { nxt[pv]=nxt[j]; cel[j]=-1; bad++; continue; } } pv=j; }
           if(f>=0){ if(z1<zf[f]) zf[f]=z1; if(z2>zc[f]) zc[f]=z2; }
-          else { if(n===cap){ cap=Math.ceil(cap*1.5); zf=ext(zf,Float32Array); zc=ext(zc,Float32Array); cel=ext(cel,Int32Array); nxt=ext(nxt,Int32Array); wb=ext(wb,Uint8Array); tf=ext(tf,Uint8Array); }
+          else { if(n===cap){ cap=Math.ceil(cap*1.5); zf=ext(zf,Float32Array); zc=ext(zc,Float32Array); cel=ext(cel,Int32Array); nxt=ext(nxt,Int32Array); wb=ext(wb,Uint8Array); tf=ext(tf,Uint8Array); nf=ext(nf,Uint8Array); }
             zf[n]=z1; zc[n]=z2; cel[n]=c; nxt[n]=head[c]; head[c]=n; f=n++; nts++; } }
         tf[f]=1; } }
     for(;;){ if(qi<n) proc(qi++); else if(redo.length){ const q=redo.pop(); proc(q); } else break; }
+    const ov=(p,j)=>Math.min(zc[p],zc[j])-Math.max(zf[p],zf[j]);
+    const kill=(q)=>{ const c=cel[q], x=c%nx, y=(c-x)/nx;
+      if(head[c]===q) head[c]=nxt[q]; else for(let j=head[c];j>=0;j=nxt[j]) if(nxt[j]===q){ nxt[j]=nxt[q]; break; }
+      cel[q]=-1; bad++;
+      for(let d=0;d<4;d++){ const xx=x+DX[d], yy=y+DY[d]; if(xx<0||yy<0||xx>=nx||yy>=ny) continue;
+        for(let j=head[yy*nx+xx];j>=0;j=nxt[j]){ if(!(ov(q,j)>0)) continue; let other=false;
+          for(let k=head[c];k>=0;k=nxt[k]) if(ov(k,j)>0){ other=true; break; }
+          if(!other) wb[j]=(wb[j]&~(16<<(d^1)))|(1<<(d^1)); } } };
+    // plytké výklenky: medzery medzi bodmi zvislej steny (stĺp, kvapeľ, stena chodby) nie sú vzduch – výklenok musí viesť aspoň 3 bunky do boku
+    let nnp=0; { const dpt=new Int32Array(n), qq=new Int32Array(n), lab=new Uint8Array(n); let h0=0, h1=0;
+      const nbs=(q,fn)=>{ const c=cel[q], x=c%nx, y=(c-x)/nx; for(let d=0;d<4;d++){ const xx=x+DX[d], yy=y+DY[d]; if(xx<0||yy<0||xx>=nx||yy>=ny) continue; for(let j=head[yy*nx+xx];j>=0;j=nxt[j]) if(ov(q,j)>0) fn(j); } };
+      for(let q=0;q<n;q++){ if(cel[q]<0||!nf[q]) continue; let src=false; nbs(q,(j)=>{ if(!nf[j]) src=true; }); if(src){ dpt[q]=1; qq[h1++]=q; } }
+      while(h0<h1){ const q=qq[h0++]; nbs(q,(j)=>{ if(nf[j]&&!dpt[j]){ dpt[j]=dpt[q]+1; qq[h1++]=j; } }); }
+      for(let q0=0;q0<n;q0++){ if(cel[q0]<0||!nf[q0]||lab[q0]) continue; h0=h1=0; lab[q0]=1; qq[h1++]=q0; let md=0, keep=false;
+        while(h0<h1){ const q=qq[h0++]; if(dpt[q]>md) md=dpt[q]; if(!dpt[q]||tf[q]) keep=true; nbs(q,(j)=>{ if(nf[j]&&!lab[j]){ lab[j]=1; qq[h1++]=j; } }); }
+        if(!keep&&md<3){ for(let t=0;t<h1;t++) kill(qq[t]); nnp+=h1; } } }
     // triesky: tenký úsek, ktorého všetci susedia sú aspoň 4× vyšší, je náhodná medzera medzi bodmi steny (alebo výklenok pod rozlíšením) – preč
     let slv=0;
     for(let q=0;q<n;q++){ const c=cel[q]; if(c<0||tf[q]) continue; const hq=zc[q]-zf[q]; if(hq>=0.3) continue; const x=c%nx, y=(c-x)/nx; let thin=false;
       for(let d=0;d<4&&!thin;d++){ const xx=x+DX[d], yy=y+DY[d]; if(xx<0||yy<0||xx>=nx||yy>=ny) continue;
-        for(let j=head[yy*nx+xx];j>=0;j=nxt[j]) if(Math.min(zc[q],zc[j])-Math.max(zf[q],zf[j])>0&&zc[j]-zf[j]<4*hq){ thin=true; break; } }
-      if(thin) continue;
-      if(head[c]===q) head[c]=nxt[q]; else for(let j=head[c];j>=0;j=nxt[j]) if(nxt[j]===q){ nxt[j]=nxt[q]; break; }
-      cel[q]=-1; bad++; slv++;
-      for(let d=0;d<4;d++){ const xx=x+DX[d], yy=y+DY[d]; if(xx<0||yy<0||xx>=nx||yy>=ny) continue;
-        for(let j=head[yy*nx+xx];j>=0;j=nxt[j]){ if(!(Math.min(zc[q],zc[j])-Math.max(zf[q],zf[j])>0)) continue; let other=false;
-          for(let k=head[c];k>=0;k=nxt[k]) if(Math.min(zc[k],zc[j])-Math.max(zf[k],zf[j])>0){ other=true; break; }
-          if(!other) wb[j]=(wb[j]&~(16<<(d^1)))|(1<<(d^1)); } } }
+        for(let j=head[yy*nx+xx];j>=0;j=nxt[j]) if(ov(q,j)>0&&zc[j]-zf[j]<4*hq){ thin=true; break; } }
+      if(thin) continue; kill(q); slv++; }
     const m=n-bad, FS=new Uint32Array(mk((nc+1)*4)), oF=new Float32Array(mk(Math.max(1,m)*4)), oC=new Float32Array(mk(Math.max(1,m)*4)), oW=new Uint8Array(mk(Math.max(1,m))), oT=new Uint8Array(mk(Math.max(1,m)));
     for(let q=0;q<n;q++) if(cel[q]>=0) FS[cel[q]+1]++;
     for(let c=0;c<nc;c++) FS[c+1]+=FS[c];
     const tmp=[]; for(let c=0;c<nc;c++){ if(head[c]<0) continue; tmp.length=0; for(let j=head[c];j>=0;j=nxt[j]) tmp.push(j);
       if(tmp.length>1) tmp.sort((p,q)=>zf[p]-zf[q]); let o=FS[c]; for(const j of tmp){ oF[o]=zf[j]; oC[o]=zc[j]; oW[o]=wb[j]; oT[o]=tf[j]; o++; } }
-    return {r:{FS:FS.buffer,ZF:oF.buffer,ZC:oC.buffer,WB:oW.buffer,TF:oT.buffer,nts,tin,tall,n:m,seeds:ns,grown:n-ns,ext:ext2,slv,nrock,nwall}}; },
+    // súvislý zhluk bodov pod dnom (FB) a nad stropom (CT) úseku v jeho vlastnej bunke: to je povrch, ktorý úsek ohraničuje (strmá stena má v bunke aj meter)
+    const oB=new Float32Array(mk(Math.max(1,m)*4)), oU=new Float32Array(mk(Math.max(1,m)*4)), lim=1.5;
+    for(let c=0;c<nc;c++){ const s=CS[c], e=CS[c+1], q0=FS[c], q1=FS[c+1]; if(q0===q1) continue;
+      for(let o=q0;o<q1;o++){ let i=lb(Z,oF[o]-1e-4,s,e), zb=oF[o];
+        if(i<e&&Z[i]<=oF[o]+1e-4){ zb=Z[i]; while(i>s&&zb-Z[i-1]<g0&&oF[o]-Z[i-1]<=lim){ i--; zb=Z[i]; } } oB[o]=zb;
+        let j=lb(Z,oC[o]-1e-4,s,e), zt=oC[o];
+        if(j<e&&Z[j]<=oC[o]+1e-4){ zt=Z[j]; while(j+1<e&&Z[j+1]-zt<g0&&Z[j+1]-oC[o]<=lim){ j++; zt=Z[j]; } } oU[o]=zt; }
+      for(let o=q0;o+1<q1;o++) if(oU[o]>=oB[o+1]){ const md=(oC[o]+oF[o+1])*0.5; oU[o]=md; oB[o+1]=md; } }
+    return {r:{FS:FS.buffer,ZF:oF.buffer,ZC:oC.buffer,WB:oW.buffer,TF:oT.buffer,FB:oB.buffer,CT:oU.buffer,nts,tin,tall,n:m,seeds:ns,grown:n-ns,ext:ext2,slv,nnp,nrock,nwall}}; },
   /* úrovne a kotvy blany. SEC: 0 = úroveň, 1/2 = vedľajšie vrecko nad/pod hlavnou úrovňou (celé strop/podlaha).
      FX: 0 = voľný uzol, 1 = kotva (okraj pôdorysu), 2 = vrecko. MV = výška blany. */
   sheet(S,a){ const FS=new Uint32Array(a.FS), ZF=new Float32Array(a.ZF), ZC=new Float32Array(a.ZC), WB=new Uint8Array(a.WB), TF=new Uint8Array(a.TF), g=a.g, nx=g.nx, ny=g.ny, nc=nx*ny, n=FS[nc], c=g.c;
@@ -389,7 +418,7 @@ function KERNELS(){
     const DX=[1,-1,0,0], DY=[0,0,1,-1], OFF=[1,-1,nx,-nx];
     const nbc=(q,d)=>{ const cl=CEL[q], x=cl%nx, y=(cl-x)/nx, xx=x+DX[d], yy=y+DY[d]; return (xx<0||yy<0||xx>=nx||yy>=ny)?-1:cl+OFF[d]; };
     const ovl=(q,j)=>Math.min(ZC[q],ZC[j])-Math.max(ZF[q],ZF[j]), cov=(q)=>FS[CEL[q]+1]-FS[CEL[q]]>1;
-    const SEC=new Uint8Array(mk(N1)), NB=new Int32Array(mk(16*N1)).fill(-1), FX=new Uint8Array(mk(N1)), MV=new Float32Array(mk(4*N1));
+    const SEC=new Uint8Array(mk(N1)), NB=new Int32Array(mk(16*N1)).fill(-1), FX=new Uint8Array(mk(N1)), MV=new Float64Array(mk(8*N1)), NS=new Int32Array(mk(16*N1)).fill(-1);
     // 1. platne: hornina medzi dvoma úsekmi vzduchu nad sebou (q pod ňou, q+1 nad ňou); susedné platne tvoria jeden jazyk, policu, most alebo balvan
     const reg=new Int32Array(N1).fill(-1), ord=new Int32Array(N1), dep=new Int32Array(N1), bq=new Int32Array(N1), stp=new Int32Array(N1).fill(-1), rs=[]; let op=0;
     const slab=(q)=>q+1<FS[CEL[q]+1];
@@ -451,17 +480,23 @@ function KERNELS(){
       own[q]=q; GZ[q]=gz; FX[q]=1; MV[q]=mid(q); bq[b1++]=q; nAn++; }
     while(b0<b1){ const u=bq[b0++], R=own[u]; for(let d=0;d<4;d++){ const j=NB[4*u+d]; if(j>=0&&own[j]<0&&dist[j]>=0&&dist[j]<dist[u]){ own[j]=R; FX[j]=1; MV[j]=mid(R)+GZ[R]*(dist[R]-dist[j]); bq[b1++]=j; } } }
     // 6. počiatočný odhad voľných uzlov: hodnota najbližšej kotvy, inak stred výšky
-    b0=b1=0; for(let q=0;q<n;q++){ stp[q]=-1; if(FX[q]===1){ stp[q]=0; bq[b1++]=q; } }
-    while(b0<b1){ const u=bq[b0++]; for(let d=0;d<4;d++){ const j=NB[4*u+d]; if(j>=0&&stp[j]<0&&!FX[j]){ stp[j]=0; MV[j]=MV[u]; bq[b1++]=j; } } }
+    // napína sa len cez obojstranné väzby (sused ma má tiež za suseda) – sústava je potom symetrická a nadrelaxovanie spoľahlivo konverguje
+    for(let q=0;q<n;q++) for(let d=0;d<4;d++){ const j=NB[4*q+d]; if(j>=0&&NB[4*j+(d^1)]===q) NS[4*q+d]=j; }
+    let mxa=0, nUn=0;
+    b0=b1=0; for(let q=0;q<n;q++){ stp[q]=-1; if(FX[q]===1){ stp[q]=0; dep[q]=0; bq[b1++]=q; } }
+    while(b0<b1){ const u=bq[b0++]; for(let d=0;d<4;d++){ const j=NS[4*u+d]; if(j>=0&&stp[j]<0&&!FX[j]){ stp[j]=0; dep[j]=dep[u]+1; if(dep[j]>mxa) mxa=dep[j]; MV[j]=MV[u]; bq[b1++]=j; } } }
+    // časti bez kotvy: hĺbka od ľubovoľného uzla (odhad rozmeru, podľa ktorého sa volí nadrelaxovanie)
+    for(let q0=0;q0<n;q0++){ if(SEC[q0]||FX[q0]||stp[q0]>=0) continue; b0=b1=0; stp[q0]=1; dep[q0]=0; bq[b1++]=q0;
+      while(b0<b1){ const u=bq[b0++]; nUn++; for(let d=0;d<4;d++){ const j=NS[4*u+d]; if(j>=0&&stp[j]<0&&!FX[j]){ stp[j]=1; dep[j]=dep[u]+1; if(dep[j]>mxa) mxa=dep[j]; bq[b1++]=j; } } } }
     // medze blany: vlastný úsek vzduchu; uzol na okraji (chýba mu sused) býva orezaný stenou, preto berie aj rozsah susedov
-    const LO=new Float32Array(mk(4*N1)), HI=new Float32Array(mk(4*N1)); let nFree=0;
+    const LO=new Float64Array(mk(8*N1)), HI=new Float64Array(mk(8*N1)); let nFree=0;
     for(let q=0;q<n;q++){ if(SEC[q]) continue; let lo=ZF[q], hi=ZC[q], edge=false; for(let d=0;d<4;d++) if(NB[4*q+d]<0){ edge=true; break; }
       if(edge) for(let d=0;d<4;d++){ const j=NB[4*q+d]; if(j>=0){ if(ZF[j]<lo) lo=ZF[j]; if(ZC[j]>hi) hi=ZC[j]; } }
       const e=Math.min(0.05,0.3*(hi-lo)); LO[q]=lo+e; HI[q]=hi-e;
-      if(FX[q]) continue; nFree++; let v=stp[q]<0?mid(q):MV[q]; if(v<LO[q]) v=LO[q]; else if(v>HI[q]) v=HI[q]; MV[q]=v; }
+      if(FX[q]) continue; nFree++; let v=stp[q]!==0?mid(q):MV[q]; if(v<LO[q]) v=LO[q]; else if(v>HI[q]) v=HI[q]; MV[q]=v; }
     const DS=new Int32Array(mk(4*N1)); DS.set(dist); let mxd=1; for(let q=0;q<n;q++) if(dist[q]>mxd) mxd=dist[q];
-    return {r:{SEC:SEC.buffer,NB:NB.buffer,FX:FX.buffer,MV:MV.buffer,LO:LO.buffer,HI:HI.buffer,DS:DS.buffer,nSec,nPk,nSlab:rs.length,nSrc,nAn,nFree,mxd}}; },
-  sor(S,a){ const LO=new Float32Array(a.LO), HI=new Float32Array(a.HI), NB=new Int32Array(a.NB), FX=new Uint8Array(a.FX), MV=new Float32Array(a.MV), w=a.w; let mx=0;
+    return {r:{SEC:SEC.buffer,NB:NB.buffer,NS:NS.buffer,FX:FX.buffer,MV:MV.buffer,LO:LO.buffer,HI:HI.buffer,DS:DS.buffer,nSec,nPk,nSlab:rs.length,nSrc,nAn,nFree,mxd,mxa,nUn}}; },
+  sor(S,a){ const LO=new Float64Array(a.LO), HI=new Float64Array(a.HI), NB=new Int32Array(a.NB), FX=new Uint8Array(a.FX), MV=new Float64Array(a.MV), w=a.w; let mx=0;
     for(let it=0;it<a.it;it++){ mx=0;
       for(let q=a.q0;q<a.q1;q++){ if(FX[q]) continue; let s=0, k=0;
         for(let d=0;d<4;d++){ const j=NB[4*q+d]; if(j>=0){ s+=MV[j]; k++; } } if(!k) continue;
@@ -469,14 +504,22 @@ function KERNELS(){
         const dl=v>m0?v-m0:m0-v; if(dl>mx) mx=dl; MV[q]=v; } }
     return {r:mx}; },
   /* body: najbližší úsek vzduchu; nad blanou strop (1), pod ňou podlaha (2), vo vrecku podľa vrecka */
-  cfb(S,a){ const X=S.X, M=S.M, K=S.K, FS=new Uint32Array(a.FS), ZF=new Float32Array(a.ZF), ZC=new Float32Array(a.ZC), MV=new Float32Array(a.MV), SEC=new Uint8Array(a.SEC);
+  cfb(S,a){ const X=S.X, M=S.M, K=S.K, FS=new Uint32Array(a.FS), ZF=new Float32Array(a.ZF), ZC=new Float32Array(a.ZC), FB=new Float32Array(a.FB), CT=new Float32Array(a.CT), MV=new Float64Array(a.MV), SEC=new Uint8Array(a.SEC);
     const g=a.g, nx=g.nx, ny=g.ny, ic=g.ic, c=g.c, Rm=a.R, Rd=a.Rd; let n0=0;
-    for(let i=a.a,o=a.a*3;i<a.b;i++,o+=3){ if(M[i]>=2) continue; const z=X[o+2], ix=Math.floor((X[o]-g.x0)*ic), iy=Math.floor((X[o+1]-g.y0)*ic); let best=1e9, bn=-1;
-      for(let k=0;k<=Rm&&(k-0.5)*c<best;k++){ const dh=k>0?(k-0.5)*c:0, d2=dh*dh;
-        for(let yy=iy-k;yy<=iy+k;yy++){ if(yy<0||yy>=ny) continue; const step=(k===0||yy===iy-k||yy===iy+k)?1:2*k;
-          for(let xx=ix-k;xx<=ix+k;xx+=step){ if(xx<0||xx>=nx) continue; const cl=yy*nx+xx;
-            for(let q=FS[cl],qe=FS[cl+1];q<qe;q++){ const dv=z<ZF[q]?ZF[q]-z:z>ZC[q]?z-ZC[q]:0, ds=Math.sqrt(d2+dv*dv); if(ds<best){ best=ds; bn=q; } } } } }
-      let cl=0; if(bn>=0&&best<=Rd){ const sc=SEC[bn]; cl=sc?sc:(z>=MV[bn]?1:2); } else n0++;
+    // bod vo výške úseku q: podľa blany; kde je blana prilepená na dno (strop) úseku, patrí tenká vrstva bodov tesne nad dnom (pod stropom) ešte k nemu
+    const side=(q,z)=>{ const sc=SEC[q]; if(sc) return sc; const m=MV[q], lo=ZF[q], hi=ZC[q], bw=Math.min(0.15,0.25*(hi-lo));
+      if(z>=m) return (m-lo<=0.051&&z-lo<bw)?2:1; return (hi-m<=0.051&&hi-z<bw)?1:2; };
+    for(let i=a.a,o=a.a*3;i<a.b;i++,o+=3){ if(M[i]>=2) continue; const z=X[o+2], ix=Math.floor((X[o]-g.x0)*ic), iy=Math.floor((X[o+1]-g.y0)*ic); let cl=-1;
+      // 1. vlastná bunka: bod vo vzduchu úseku, alebo v zhluku bodov, ktorý úsek zdola či zhora ohraničuje (dno je pod blanou, strop nad ňou)
+      if(ix>=0&&iy>=0&&ix<nx&&iy<ny){ const c0=iy*nx+ix;
+        for(let q=FS[c0],qe=FS[c0+1];q<qe;q++){ if(z>ZF[q]&&z<ZC[q]){ cl=side(q,z); break; } if(z<=ZF[q]&&z>=FB[q]){ cl=SEC[q]||2; break; } if(z>=ZC[q]&&z<=CT[q]){ cl=SEC[q]||1; break; } } }
+      // 2. inak najbližší úsek vzduchu v okolí
+      if(cl<0){ let best=1e9, bn=-1;
+        for(let k=0;k<=Rm&&(k-0.5)*c<best;k++){ const dh=k>0?(k-0.5)*c:0, d2=dh*dh;
+          for(let yy=iy-k;yy<=iy+k;yy++){ if(yy<0||yy>=ny) continue; const step=(k===0||yy===iy-k||yy===iy+k)?1:2*k;
+            for(let xx=ix-k;xx<=ix+k;xx+=step){ if(xx<0||xx>=nx) continue; const cc=yy*nx+xx;
+              for(let q=FS[cc],qe=FS[cc+1];q<qe;q++){ const dv=z<ZF[q]?ZF[q]-z:z>ZC[q]?z-ZC[q]:0, ds=Math.sqrt(d2+dv*dv); if(ds<best){ best=ds; bn=q; } } } } }
+        if(bn>=0&&best<=Rd) cl=side(bn,z); else { cl=0; n0++; } }
       K[i]=cl; }
     return {r:n0}; },
   selClass(S,a){ const M=S.M, K=S.K, cv=a.cv, cls=a.cls, R=[0,0,0,0,0];
@@ -487,15 +530,15 @@ function KERNELS(){
   setClass(S,a){ const M=S.M, K=S.K, cls=a.cls, R=[0,0,0,0,0];
     for(let i=a.a;i<a.b;i++){ const v=M[i]; if(v>=2) continue; if(v===1) K[i]=cls; R[0]++; if(v===1) R[1]++; R[2+K[i]]++; }
     return {r:R}; },
-  scatter(S,a){ const cell=cellOf(a.g), off=a.off, X=S.tX, n=S.tn, D=S.X, DC=S.C32;
+  scatter(S,a){ const cell=cellOf(a.g), off=a.off, X=S.tX, n=S.tn, D=S.X, DC=S.C32, DN=S.N, tN=S.tN;
     const tc=S.tC?new Uint32Array(S.tC.buffer,S.tC.byteOffset,n):null;
-    for(let i=0,o=0;i<n;i++,o+=3){ const j=off[cell(X[o],X[o+1],X[o+2])]++, q=j*3; D[q]=X[o]; D[q+1]=X[o+1]; D[q+2]=X[o+2]; if(tc) DC[j]=tc[i]; }
-    S.tX=S.tC=null; S.tn=0; return {r:1}; },
-  shuffle(S,a){ const X=S.X, C=S.C32, R=a.ranges; let s=(a.seed|0)||1;
+    for(let i=0,o=0;i<n;i++,o+=3){ const j=off[cell(X[o],X[o+1],X[o+2])]++, q=j*3; D[q]=X[o]; D[q+1]=X[o+1]; D[q+2]=X[o+2]; if(tc) DC[j]=tc[i]; if(tN) DN[j]=tN[i]; }
+    S.tX=S.tC=S.tN=null; S.tn=0; return {r:1}; },
+  shuffle(S,a){ const X=S.X, C=S.C32, N=S.N, R=a.ranges; let s=(a.seed|0)||1;
     for(let r=0;r<R.length;r+=2){ const b=R[r], cnt=R[r+1];
       for(let i=cnt-1;i>0;i--){ s^=s<<13; s^=s>>>17; s^=s<<5; const j=(s>>>0)%(i+1); if(j===i) continue;
         const p=(b+i)*3, q=(b+j)*3; let t=X[p];X[p]=X[q];X[q]=t; t=X[p+1];X[p+1]=X[q+1];X[q+1]=t; t=X[p+2];X[p+2]=X[q+2];X[q+2]=t;
-        if(C){ t=C[b+i]; C[b+i]=C[b+j]; C[b+j]=t; } } }
+        if(C){ t=C[b+i]; C[b+i]=C[b+j]; C[b+j]=t; } if(N){ t=N[b+i]; N[b+i]=N[b+j]; N[b+j]=t; } } }
     return {r:1}; },
   lasso(S,a){ const X=S.X, M=S.M, K=S.K, cv=a.cv, m=a.mvp, W=a.W, H=a.H, B=a.bmp, mode=a.mode, bx=a.box; let sel=0;
     for(let i=a.a;i<a.b;i++){ const v=M[i]; if(v>=2) continue;
@@ -524,14 +567,24 @@ function KERNELS(){
       }
       if(v!==v0) M[i]=v; if(v<2){ R[0]++; if(v===1) R[1]++; R[2+K[i]]++; } }
     return {r:R}; },
-  exp(S,a){ const X=S.X, M=S.M, K=S.K, cv=a.cv, C=S.C8, o3=a.org, dbl=a.dbl, col=a.col&&!!C; let n=0;
-    for(let i=a.a;i<a.b;i++) if(M[i]<2&&((cv>>K[i])&1)) n++;
-    const rs=(dbl?24:12)+(col?3:0), buf=new ArrayBuffer(n*rs), dv=new DataView(buf); let p=0;
-    for(let i=a.a;i<a.b;i++){ if(M[i]>=2||!((cv>>K[i])&1)) continue; const o=i*3;
+  exp(S,a){ const X=S.X, M=S.M, K=S.K, N=S.N, cv=a.cv, C=S.C8, o3=a.org, dbl=a.dbl, col=a.col&&!!C, nrm=a.nrm&&!!N, dec=a.dec||1, nv=[0,0,0]; let n=0;
+    for(let i=a.a;i<a.b;i++) if(M[i]<2&&((cv>>K[i])&1)&&i%dec===0) n++;
+    if(a.count) return {r:{n}};
+    const rs=(dbl?24:12)+(col?3:0)+(nrm?12:0), buf=new ArrayBuffer(n*rs), dv=new DataView(buf); let p=0;
+    for(let i=a.a;i<a.b;i++){ if(M[i]>=2||!((cv>>K[i])&1)||i%dec!==0) continue; const o=i*3;
       if(dbl){ dv.setFloat64(p,X[o]+o3[0],true); dv.setFloat64(p+8,X[o+1]+o3[1],true); dv.setFloat64(p+16,X[o+2]+o3[2],true); p+=24; }
       else { dv.setFloat32(p,X[o]+o3[0],true); dv.setFloat32(p+4,X[o+1]+o3[1],true); dv.setFloat32(p+8,X[o+2]+o3[2],true); p+=12; }
-      if(col){ const c=i*4; dv.setUint8(p,C[c]); dv.setUint8(p+1,C[c+1]); dv.setUint8(p+2,C[c+2]); p+=3; } }
+      if(col){ const c=i*4; dv.setUint8(p,C[c]); dv.setUint8(p+1,C[c+1]); dv.setUint8(p+2,C[c+2]); p+=3; }
+      if(nrm){ octD(N[i],nv); dv.setFloat32(p,nv[0],true); dv.setFloat32(p+4,nv[1],true); dv.setFloat32(p+8,nv[2],true); p+=12; } }
     return {r:{buf,n},t:[buf]}; },
+  /* normály voči trajektórii: najbližšia poloha skenera (mriežka HS/HI nad preriedenou trajektóriou T); flip = otočiť tie, čo smerujú od nej */
+  nor(S,a){ const X=S.X, N=S.N, T=a.T, HS=a.HS, HI=a.HI, g=a.g, v=[0,0,0]; let tw=0, aw=0, nn=0;
+    for(let i=a.a,o=a.a*3;i<a.b;i++,o+=3){ const x=X[o], y=X[o+1], z=X[o+2], cx=Math.floor((x-g.x0)/g.s), cy=Math.floor((y-g.y0)/g.s), cz=Math.floor((z-g.z0)/g.s); let bd=1e30, bj=-1;
+      for(let r=1;r<=4&&bj<0;r++) for(let iz=cz-r;iz<=cz+r;iz++){ if(iz<0||iz>=g.nz) continue; for(let iy=cy-r;iy<=cy+r;iy++){ if(iy<0||iy>=g.ny) continue; for(let ix=cx-r;ix<=cx+r;ix++){ if(ix<0||ix>=g.nx) continue;
+        const c=(iz*g.ny+iy)*g.nx+ix; for(let q=HS[c];q<HS[c+1];q++){ const j=HI[q]*3, dx=T[j]-x, dy=T[j+1]-y, dz=T[j+2]-z, d=dx*dx+dy*dy+dz*dz; if(d<bd){ bd=d; bj=j; } } } } }
+      if(bj<0){ nn++; continue; } octD(N[i],v);
+      if(v[0]*(T[bj]-x)+v[1]*(T[bj+1]-y)+v[2]*(T[bj+2]-z)>=0) tw++; else { aw++; if(a.flip) N[i]=octE(-v[0],-v[1],-v[2]); } }
+    return {r:[tw,aw,nn]}; },
   };
 }
 const KM=KERNELS();
@@ -574,6 +627,7 @@ async function plyHeader(file){
   H.V=V; H.vstart=H.off+pre;
   const f=(...nm)=>V.props.find((p)=>nm.includes(p.name.toLowerCase()));
   H.x=f("x"); H.y=f("y"); H.z=f("z"); H.r=f("red","r","diffuse_red"); H.g=f("green","g","diffuse_green"); H.b=f("blue","b","diffuse_blue");
+  H.nx=f("nx","normal_x"); H.ny=f("ny","normal_y"); H.nz=f("nz","normal_z");
   if(!H.x||!H.y||!H.z) throw new Error("chýba x, y alebo z");
   H.ascii=H.fmt==="ascii"; H.le=H.fmt!=="binary_big_endian";
   if(H.ascii&&H.els.some((e,i)=>i!==vi&&e.n>0)) throw new Error("ASCII PLY s ďalšími elementmi (napr. plochy) nie je podporené");
@@ -595,19 +649,20 @@ function loopSrc(H){
     if(x<b0)b0=x; if(x>b3)b3=x; if(y<b1)b1=y; if(y>b4)b4=y; if(z<b2)b2=z; if(z>b5)b5=z;
     const o=k*3; X[o]=x; X[o+1]=y; X[o+2]=z;
     ${hasC?`const c=k*4; C[c]=${col(H.r)}; C[c+1]=${col(H.g)}; C[c+2]=${col(H.b)}; C[c+3]=255;`:""}
+    ${H.nx&&H.ny&&H.nz?`N[k]=oe(${g(H.nx)},${g(H.ny)},${g(H.nz)});`:""}
     k++; }
   st[0]=b0; st[1]=b1; st[2]=b2; st[3]=b3; st[4]=b4; st[5]=b5; return k;`;
 }
 
 /* ============ stav ============ */
 let D={n:0}, busy=false, nextOp=3, undo=[];
-const ui={mdl:false,mode:0,ps:1.5,budget:20e6,lasso:false,boxShow:true,boxClip:false,cv:7};
+const ui={lit:0,mdl:false,mode:0,ps:1.5,budget:20e6,lasso:false,boxShow:true,boxClip:false,cv:7};
 function setBusy(t){ busy=!!t; $("busy").textContent=t||""; $("busy").style.display=t?"block":"none"; }
 const tick=()=>new Promise((r)=>setTimeout(r,0));
 
 /* ============ načítanie ============ */
 function freeData(){
-  if(D.chunks) for(const ch of D.chunks){ gl.deleteBuffer(ch.bx); if(ch.bc) gl.deleteBuffer(ch.bc); gl.deleteBuffer(ch.bm); gl.deleteBuffer(ch.bk); gl.deleteVertexArray(ch.vao); }
+  if(D.chunks) for(const ch of D.chunks){ gl.deleteBuffer(ch.bx); if(ch.bc) gl.deleteBuffer(ch.bc); gl.deleteBuffer(ch.bm); gl.deleteBuffer(ch.bk); if(ch.bn) gl.deleteBuffer(ch.bn); gl.deleteVertexArray(ch.vao); }
   $("bCf").disabled=true; freeModel(); freeTraj();
   if(pool) pool.close(); pool=null; MS=[]; D={n:0}; nextOp=3; undo=[];
 }
@@ -619,16 +674,16 @@ async function openFile(file){
     const H=await plyHeader(file), org=await plyOrigin(file,H);
     freeData(); req();
     pool=new Pool(NW); MS=Array.from({length:NW},()=>({}));
-    const n0=H.V.n, hasC=!!(H.r&&H.g&&H.b), loop=H.ascii?"":loopSrc(H);
-    const ix=[H.x,H.y,H.z,H.r,H.g,H.b].map((p)=>p?H.V.props.indexOf(p):-1);
+    const n0=H.V.n, hasC=!!(H.r&&H.g&&H.b), hasN=!!(H.nx&&H.ny&&H.nz), loop=H.ascii?"":loopSrc(H);
+    const ix=[H.x,H.y,H.z,H.r,H.g,H.b,H.nx,H.ny,H.nz].map((p)=>p?H.V.props.indexOf(p):-1);
     const cscale=H.r&&isFloat(H.r.t)?255:(H.r&&(H.r.t==="ushort"||H.r.t==="uint16"))?1/257:1;
     const dataEnd=H.ascii?file.size:H.vstart+n0*H.V.stride, per=Math.ceil(n0/NW);
     setBusy(`Čítam ${fN(n0)} bodov (${NW} vlákien)…`);
     const R=await Promise.all(Array.from({length:NW},(_,j)=>{ let start,end;
       if(H.ascii){ const sz=Math.ceil((file.size-H.vstart)/NW); start=Math.min(file.size,H.vstart+j*sz); end=Math.min(file.size,start+sz); }
       else { const a=Math.min(n0,j*per), b=Math.min(n0,(j+1)*per); start=H.vstart+a*H.V.stride; end=H.vstart+b*H.V.stride; }
-      return pool.call(j,"parse",{file,start,end,stride:H.V.stride,loop,col:hasC,org,ascii:H.ascii,ix,cscale,first:j===0,dataEnd,shared:SHARED}); }));
-    if(!SHARED) R.forEach((r,j)=>{ MS[j]={tX:r.tX,tC:r.tC,tn:r.n}; r.tX=r.tC=null; });
+      return pool.call(j,"parse",{file,start,end,stride:H.V.stride,loop,col:hasC,nrm:hasN,org,ascii:H.ascii,ix,cscale,first:j===0,dataEnd,shared:SHARED}); }));
+    if(!SHARED) R.forEach((r,j)=>{ MS[j]={tX:r.tX,tC:r.tC,tN:r.tN,tn:r.n}; r.tX=r.tC=r.tN=null; });
     const n=R.reduce((s,r)=>s+r.n,0); if(!n) throw new Error("súbor neobsahuje body");
     const bb=[0,1,2].map((i)=>Math.min(...R.map((r)=>r.bb[i]))).concat([3,4,5].map((i)=>Math.max(...R.map((r)=>r.bb[i]))));
     T.push(performance.now());
@@ -643,13 +698,13 @@ async function openFile(file){
     const cnt=new Uint32Array(g.nc); for(const h of hs) for(let c=0;c<g.nc;c++) cnt[c]+=h[c];
     const cst=new Float64Array(g.nc); for(let c=1;c<g.nc;c++) cst[c]=cst[c-1]+cnt[c-1];
     const runOff=Float64Array.from(cst), offs=hs.map((h)=>{ const o=new Uint32Array(g.nc); for(let c=0;c<g.nc;c++){ o[c]=runOff[c]; runOff[c]+=h[c]; } return o; });
-    const X=new Float32Array(alloc(n*12)), C32=hasC?new Uint32Array(alloc(n*4)):null, M=new Uint8Array(alloc(n)), Kc=new Uint8Array(alloc(n));
-    await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"init",{X:X.buffer,C:C32?C32.buffer:null,M:M.buffer,K:Kc.buffer})));
+    const X=new Float32Array(alloc(n*12)), C32=hasC?new Uint32Array(alloc(n*4)):null, M=new Uint8Array(alloc(n)), Kc=new Uint8Array(alloc(n)), N16=hasN?new Int16Array(alloc(n*2)):null;
+    await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"init",{X:X.buffer,C:C32?C32.buffer:null,M:M.buffer,K:Kc.buffer,N:N16?N16.buffer:null})));
     await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"scatter",{g,off:offs[i]},[offs[i].buffer])));
     const cells=[];
     for(let c=0;c<g.nc;c++){ if(!cnt[c]) continue; const ix_=c%nx, iy=Math.floor(c/nx)%ny, iz=Math.floor(c/(nx*ny));
       const mn=[g.mn[0]+ix_*s,g.mn[1]+iy*s,g.mn[2]+iz*s]; cells.push({start:cst[c],cnt:cnt[c],mn,mx:[mn[0]+s,mn[1]+s,mn[2]+s],rel:0,vis:false}); }
-    D={file,name:file.name,n,org,bb,hasC,X,C32,C8:C32?new Uint8Array(C32.buffer):null,M,K:Kc,cls:[n,0,0],cols:null,cfText:"",cells,g,alive:n,sel:0,
+    D={file,name:file.name,n,org,bb,hasC,hasN,N:N16,nTxt:"",X,C32,C8:C32?new Uint8Array(C32.buffer):null,M,K:Kc,cls:[n,0,0],cols:null,cfText:"",cells,g,alive:n,sel:0,
        diag:Math.hypot(d[0],d[1],d[2]),fmt:H.fmt,stride:H.V.stride};
     const grp=Array.from({length:NW},()=>[]); let gi=0, acc=0;
     for(const c of cells){ grp[gi].push(c.start,c.cnt); acc+=c.cnt; if(gi<NW-1&&acc>=n*(gi+1)/NW) gi++; }
@@ -668,8 +723,9 @@ async function openFile(file){
     $("colMode").value=hasC?"0":"1"; ui.mode=+$("colMode").value; $("colMode").options[0].disabled=!hasC;
     $("expFmt").value=org.some((v)=>Math.abs(v)>=1e4)?"d":"f";
     boxReset(); view("fit");
-    const mem=n*(12+(hasC?4:0)+2);
-    D.infoText=[`${file.name}`,`${H.fmt} · ${f1(file.size/G,2)} GiB · ${fN(n)} bodov · farba ${hasC?"áno":"nie"}`,
+    const mem=n*(12+(hasC?4:0)+2+(hasN?2:0));
+    for(const id of ["nShade","nCull"]){ $(id).disabled=!hasN; } $("nShade").checked=hasN; $("nCull").checked=false; $("colMode").options[3].disabled=!hasN; setLit();
+    D.infoText=[`${file.name}`,`${H.fmt} · ${f1(file.size/G,2)} GiB · ${fN(n)} bodov · farba ${hasC?"áno":"nie"} · normály ${hasN?"áno":"nie"}`+((x)=>x.length?` · ďalšie údaje: ${x.join(", ")}`:"")(H.V.props.filter((q)=>![H.x,H.y,H.z,H.r,H.g,H.b,H.nx,H.ny,H.nz].includes(q)).map((q)=>q.name)),
       `lokálny počiatok: ${org.join(" ")}`,`rozmer: ${f1(d[0],2)} × ${f1(d[1],2)} × ${f1(d[2],2)} m`,
       `blokov: ${fN(cells.length)} (hrana ${f1(s,2)} m) · kúskov na karte: ${D.chunks.length}`,
       `čítanie ${f1((T[1]-T[0])/1000,2)} s · triedenie ${f1((T[2]-T[1])/1000,2)} s · karta ${f1((T[3]-T[2])/1000,2)} s`,
@@ -678,11 +734,12 @@ async function openFile(file){
   }catch(err){
     console.error(err); freeData(); $("info").textContent="CHYBA: "+err.message; $("hint").style.display="";
   }finally{ setBusy(""); }
+  if(D.n&&pendingTraj){ const f=pendingTraj; pendingTraj=null; openTraj(f); }
 }
 function updInfo(){ if(!D.n){ $("info").textContent="Žiadne mračno."; return; }
   $("info").textContent=D.infoText+(D.cfText?"\n"+D.cfText:"")+`\nzostáva: ${fN(D.alive)} · zmazaných: ${fN(D.n-D.alive)} · vybraných: ${fN(D.sel)}${undo.length?` · krokov späť: ${undo.length}`:""}`+
     (D.cls[1]+D.cls[2]?`\nstrop: ${fN(D.cls[1])} · podlaha: ${fN(D.cls[2])} · nezaradené: ${fN(D.cls[0])}`:"")+
-    (D.traj?`\ntrajektória: ${D.traj.name} · ${fN(D.traj.raw)} polôh · ${f1(D.traj.len,1)} m`:""); }
+    (D.traj?`\ntrajektória: ${D.traj.name} · ${fN(D.traj.raw)} polôh · ${f1(D.traj.len,1)} m`:"")+(D.nTxt?"\n"+D.nTxt:""); }
 
 /* ============ WebGL ============ */
 const cv=$("gl"), ov=$("ov"), octx=ov.getContext("2d");
@@ -690,14 +747,16 @@ const gl=cv.getContext("webgl2",{antialias:false,powerPreference:"high-performan
 if(!gl){ $("hint").textContent="WebGL2 nie je k dispozícii."; throw new Error("WebGL2"); }
 const extCBF=gl.getExtension("EXT_color_buffer_float");
 const VS=(pick)=>`#version 300 es
-layout(location=0) in vec3 p; layout(location=1) in vec4 c; layout(location=2) in uint m; layout(location=3) in uint k;
-uniform mat4 mvp; uniform float ps; uniform int mode; uniform vec2 zr; uniform int bon; uniform vec3 bmn; uniform vec3 bmx; uniform int cv;
+layout(location=0) in vec3 p; layout(location=1) in vec4 c; layout(location=2) in uint m; layout(location=3) in uint k; layout(location=4) in vec2 ne;
+uniform mat4 mvp; uniform float ps; uniform int mode; uniform vec2 zr; uniform int bon; uniform vec3 bmn; uniform vec3 bmx; uniform int cv; uniform vec3 eye; uniform int lit;
 out vec3 v;
+vec3 octn(vec2 e){ vec3 n=vec3(e,1.0-abs(e.x)-abs(e.y)); float t=max(-n.z,0.0); n.x+=n.x>=0.0?-t:t; n.y+=n.y>=0.0?-t:t; return normalize(n); }
 vec3 ramp(float t){ t=clamp(t,0.0,1.0); return clamp(vec3(1.5-abs(4.0*t-3.0),1.5-abs(4.0*t-2.0),1.5-abs(4.0*t-1.0)),0.0,1.0); }
 void main(){
-  if(m>=2u||((cv>>int(k))&1)==0||(bon==1&&(any(lessThan(p,bmn))||any(greaterThan(p,bmx))))){ gl_Position=vec4(2.0,2.0,2.0,1.0); gl_PointSize=1.0; v=vec3(0.0); return; }
+  vec3 nn=octn(ne); float fd=dot(nn,normalize(eye-p));
+  if(m>=2u||((cv>>int(k))&1)==0||(bon==1&&(any(lessThan(p,bmn))||any(greaterThan(p,bmx))))||((lit&2)!=0&&fd<-0.05)){ gl_Position=vec4(2.0,2.0,2.0,1.0); gl_PointSize=1.0; v=vec3(0.0); return; }
   gl_Position=mvp*vec4(p,1.0); gl_PointSize=ps;
-  ${pick?"v=p;":"vec3 cc=k==1u?vec3(0.32,0.62,1.0):k==2u?vec3(0.95,0.63,0.22):vec3(0.62); vec3 col=mode==0?c.rgb:mode==1?ramp((p.z-zr.x)/max(zr.y-zr.x,1e-6)):cc*(0.35+0.65*dot(c.rgb,vec3(0.3,0.59,0.11))); if(m==1u) col=mix(col,vec3(1.0,0.82,0.1),0.75); v=col;"}
+  ${pick?"v=p;":"vec3 cc=k==1u?vec3(0.32,0.62,1.0):k==2u?vec3(0.95,0.63,0.22):vec3(0.62); vec3 col=mode==0?c.rgb:mode==1?ramp((p.z-zr.x)/max(zr.y-zr.x,1e-6)):mode==2?cc*(0.35+0.65*dot(c.rgb,vec3(0.3,0.59,0.11))):mix(mix(vec3(0.55,0.75,0.5),vec3(0.95,0.63,0.22),clamp(nn.z,0.0,1.0)),vec3(0.32,0.62,1.0),clamp(-nn.z,0.0,1.0)); if((lit&1)!=0) col*=0.3+0.7*abs(fd); if(m==1u) col=mix(col,vec3(1.0,0.82,0.1),0.75); v=col;"}
 }`;
 const FS=`#version 300 es
 precision highp float; in vec3 v; out vec4 o; void main(){ o=vec4(v,1.0); }`;
@@ -705,7 +764,7 @@ function prog(vs,fs){ const p=gl.createProgram();
   for(const [t,s] of [[gl.VERTEX_SHADER,vs],[gl.FRAGMENT_SHADER,fs]]){ const o=gl.createShader(t); gl.shaderSource(o,s); gl.compileShader(o);
     if(!gl.getShaderParameter(o,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); gl.attachShader(p,o); }
   gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
-  const u={}; for(const nm of ["mvp","ps","mode","zr","bon","bmn","bmx","col","cv"]) u[nm]=gl.getUniformLocation(p,nm); return {p,u}; }
+  const u={}; for(const nm of ["mvp","ps","mode","zr","bon","bmn","bmx","col","cv","eye","lit"]) u[nm]=gl.getUniformLocation(p,nm); return {p,u}; }
 const PP=prog(VS(false),FS), PK=prog(VS(true),FS);
 const PV=prog(`#version 300 es
 layout(location=0) in vec3 p; layout(location=1) in vec4 c; uniform mat4 mvp; uniform float ps; out vec3 v;
@@ -737,8 +796,10 @@ function makeChunk(ch){
   else gl.disableVertexAttribArray(1);
   ch.bm=upload(D.M,ch.start,ch.cnt); gl.enableVertexAttribArray(2); gl.vertexAttribIPointer(2,1,gl.UNSIGNED_BYTE,0,0);
   ch.bk=upload(D.K,ch.start,ch.cnt); gl.enableVertexAttribArray(3); gl.vertexAttribIPointer(3,1,gl.UNSIGNED_BYTE,0,0);
+  if(D.N){ ch.bn=upload(D.N,ch.start,ch.cnt); gl.enableVertexAttribArray(4); gl.vertexAttribPointer(4,2,gl.BYTE,true,0,0); }
   gl.bindVertexArray(null);
 }
+function uploadNormals(){ if(D.N) for(const ch of D.chunks) upload(D.N,ch.start,ch.cnt,ch.bn); }
 function uploadMask(){ for(const ch of D.chunks) upload(D.M,ch.start,ch.cnt,ch.bm); }
 function uploadClass(){ for(const ch of D.chunks) upload(D.K,ch.start,ch.cnt,ch.bk); }
 
@@ -778,6 +839,7 @@ function boxLocal(){ const b=[0,1,2,3,4,5].map((i)=>+$("b"+i).value-D.org[i%3]);
 function setUniforms(P,m){ const dpr=window.devicePixelRatio||1;
   gl.useProgram(P.p); gl.uniformMatrix4fv(P.u.mvp,false,new Float32Array(m)); gl.uniform1f(P.u.ps,ui.ps*dpr); gl.uniform1i(P.u.mode,ui.mode);
   gl.uniform2f(P.u.zr,D.bb[2],D.bb[5]); gl.uniform1i(P.u.bon,ui.boxClip?1:0); gl.uniform1i(P.u.cv,ui.cv);
+  const e=eyePos(); gl.uniform3f(P.u.eye,e[0],e[1],e[2]); gl.uniform1i(P.u.lit,D.N?ui.lit:0);
   const b=boxLocal(); gl.uniform3f(P.u.bmn,b[0],b[1],b[2]); gl.uniform3f(P.u.bmx,b[3],b[4],b[5]); }
 function drawPoints(m,f){ let drawn=0;
   for(const ch of D.chunks){ gl.bindVertexArray(ch.vao); let rs=0, rc=0;
@@ -1065,7 +1127,7 @@ async function buildLevels(air,c0){
   await run("seed",(i)=>({c0:R[i][0],c1:R[i][1],Z,CS:CS.buffer,KF,SF:SF.buffer,ZF:ZF0,ZC:ZC0,ACS:air.CS.buffer,ARZ:air.RZ.buffer,g,G,r:air.r}));
   setBusy("Úrovne: rast k stenám…"); await tick();
   const L=await exec(0,"grow",{Z,CS:CS.buffer,KF,SF:SF.buffer,ZF:ZF0,ZC:ZC0,g,g0,dl,tk:0.6*g0,wk:0.25*med/(2*c),tr:D.traj?D.traj.P:null,shared:SHARED});
-  return {g,c,g0,dl,med,lone,n:L.n,seeds:L.seeds,grown:L.grown,ext:L.ext,slv:L.slv,nrock:L.nrock,nwall:L.nwall,FS:new Uint32Array(L.FS),ZF:new Float32Array(L.ZF),ZC:new Float32Array(L.ZC),WB:new Uint8Array(L.WB),TF:new Uint8Array(L.TF),nts:L.nts,tin:L.tin,tall:L.tall,Z:new Float32Array(Z),CS};
+  return {g,c,g0,dl,med,lone,n:L.n,seeds:L.seeds,grown:L.grown,ext:L.ext,slv:L.slv,nnp:L.nnp,nrock:L.nrock,nwall:L.nwall,FS:new Uint32Array(L.FS),ZF:new Float32Array(L.ZF),ZC:new Float32Array(L.ZC),FB:new Float32Array(L.FB),CT:new Float32Array(L.CT),WB:new Uint8Array(L.WB),TF:new Uint8Array(L.TF),nts:L.nts,tin:L.tin,tall:L.tall,Z:new Float32Array(Z),CS};
 }
 async function classifyBlana(cell){
   const t0=performance.now(), air=await buildAir(cell), t1=performance.now();
@@ -1073,19 +1135,20 @@ async function classifyBlana(cell){
   if(!n) throw new Error("jemný model nenašiel vzduch");
   setBusy("Blana: úrovne a kotvy…"); await tick();
   const B={FS:L.FS.buffer,ZF:L.ZF.buffer,ZC:L.ZC.buffer};
-  const H=await exec(0,"sheet",{...B,WB:L.WB.buffer,TF:L.TF.buffer,g:L.g,D:Math.max(0,+$("cfD").value||0),s:Math.max(L.c,+$("cfS").value||0.3),tau:0.15,shared:SHARED});
+  const H=await exec(0,"sheet",{...B,WB:L.WB.buffer,TF:L.TF.buffer,g:L.g,D:Math.max(0,+$("cfD").value||0),s:Math.max(L.c,+$("cfS").value||0.3),tau:self.TAU||0.15,shared:SHARED});
   setBusy("Blana: napínam…"); await tick();
-  // relaxácia s nadrelaxovaním podľa šírky najširšieho priestoru (vzdialenosť od okraja v bunkách)
-  const qr=(i)=>({q0:Math.floor(i*n/NW),q1:Math.floor((i+1)*n/NW)}), w=Math.min(1.97,2/(1+Math.sin(Math.PI/(2*H.mxd+2)))); let rounds=0, mx=1;
-  while(mx>0.001&&rounds<400){ mx=Math.max(...await run("sor",(i)=>({...qr(i),LO:H.LO,HI:H.HI,NB:H.NB,FX:H.FX,MV:H.MV,w,it:20}))); rounds++;
-    if(rounds%10===0){ setBusy(`Blana: napínam… (${rounds*20} krokov, zmena ${f1(mx*1000,1)} mm)`); await tick(); } }
+  // relaxácia s nadrelaxovaním podľa najväčšej vzdialenosti od kotvy (v bunkách); končí, až keď odhad zvyškovej chyby klesne pod 2 mm
+  const Lw=Math.max(H.mxd,H.mxa,4), w=Math.min(1.9995,2/(1+Math.sin(Math.PI/(2*Lw+2)))), thr=0.002*(2-w), smin=2*Lw, smax=Math.min(400000,40*Lw+2000), it=50, par=n>400000;
+  const qr=(i)=>({q0:Math.floor(i*n/NW),q1:Math.floor((i+1)*n/NW)}), sa={LO:H.LO,HI:H.HI,NB:H.NS,FX:H.FX,MV:H.MV,w,it}; let sweeps=0, mx=1, tl=performance.now();
+  while((mx>thr||sweeps<smin)&&sweeps<smax){ mx=par?Math.max(...await run("sor",(i)=>({...qr(i),...sa}))):await exec(0,"sor",{q0:0,q1:n,...sa}); sweeps+=it;
+    if(performance.now()-tl>300){ tl=performance.now(); setBusy(`Blana: napínam… (${fN(sweeps)} krokov, zmena ${f1(mx*1000,3)} mm)`); await tick(); } }
   const t3=performance.now(); setBusy("Blana: triedim body…"); await tick();
-  await run("cfb",(i)=>({...rg(i),...B,MV:H.MV,SEC:H.SEC,g:L.g,R:Math.ceil(0.5/L.c),Rd:0.6}));
-  L.Z=null; L.CS=null; D.air=air; D.lvl={...L,SEC:new Uint8Array(H.SEC),FX:new Uint8Array(H.FX),MV:new Float32Array(H.MV),NB:new Int32Array(H.NB),DS:new Int32Array(H.DS),st:H};
+  await run("cfb",(i)=>({...rg(i),...B,FB:L.FB.buffer,CT:L.CT.buffer,MV:H.MV,SEC:H.SEC,g:L.g,R:Math.ceil(0.5/L.c),Rd:0.6}));
+  L.Z=null; L.CS=null; D.air=air; D.lvl={...L,SEC:new Uint8Array(H.SEC),FX:new Uint8Array(H.FX),MV:new Float64Array(H.MV),NB:new Int32Array(H.NB),DS:new Int32Array(H.DS),st:H};
   buildBlanaVis(D.lvl);
-  return air.txt+`\nblana: bunka ${f1(L.c,2)} m · ${fN(n)} úsekov vzduchu, z toho ${fN(L.grown)} dorastených · vreciek ${fN(H.nPk)} · kotiev ${fN(H.nAn)} · medzera od ${f1(L.g0*100,0)} cm`+
+  return air.txt+`\nblana: bunka ${f1(L.c,2)} m · ${fN(n)} úsekov vzduchu, z toho ${fN(L.grown)} dorastených · plytkých výklenkov zrušených ${fN(L.nnp)} · vreciek ${fN(H.nPk)} · kotiev ${fN(H.nAn)} · medzera od ${f1(L.g0*100,0)} cm`+
     (D.traj?`\ntrajektória: ${fN(L.tall)} polôh, z nich ${fN(L.tin)} už vo vzduchu modelu, ${fN(L.nts)} nových zárodkov`:"")+"\n"+
-    `čas ${f1((performance.now()-t0)/1000,2)} s (model ${f1((t1-t0)/1000,2)} · úrovne ${f1((t2-t1)/1000,2)} · blana ${f1((t3-t2)/1000,2)} s, ${rounds*20} krokov)`;
+    `čas ${f1((performance.now()-t0)/1000,2)} s (model ${f1((t1-t0)/1000,2)} · úrovne ${f1((t2-t1)/1000,2)} · blana ${f1((t3-t2)/1000,2)} s, ${fN(sweeps)} krokov, najďalej od kotvy ${fN(Lw)} buniek)`;
 }
 function buildBlanaVis(L){
   freeModel(); const g=L.g, nx=g.nx, c=g.c, nc=nx*g.ny; let m=0; for(let q=0;q<L.n;q++) if(!L.SEC[q]) m++;
@@ -1138,8 +1201,23 @@ $("mdlShow").addEventListener("change",(e)=>{ ui.mdl=e.target.checked; req(); })
 
 /* ============ trajektória skenera ============ */
 function freeTraj(){ if(D.traj){ gl.deleteBuffer(D.traj.buf); gl.deleteVertexArray(D.traj.vao); D.traj=null; } }
+let pendingTraj=null;
+async function orientNormals(){
+  if(!D.N||!D.traj) return; setBusy("Normály: porovnávam s trajektóriou…"); await tick();
+  const P=D.traj.P, T=[], s=5; let lx=NaN, ly=0, lz=0, mn=[1e30,1e30,1e30], mx=[-1e30,-1e30,-1e30];
+  for(let i=0;i<P.length;i+=3){ if(isNaN(lx)||Math.hypot(P[i]-lx,P[i+1]-ly,P[i+2]-lz)>=0.5){ lx=P[i]; ly=P[i+1]; lz=P[i+2]; T.push(lx,ly,lz); for(let d=0;d<3;d++){ if(P[i+d]<mn[d]) mn[d]=P[i+d]; if(P[i+d]>mx[d]) mx[d]=P[i+d]; } } }
+  const g={x0:mn[0]-s,y0:mn[1]-s,z0:mn[2]-s,s,nx:Math.ceil((mx[0]-mn[0])/s)+2,ny:Math.ceil((mx[1]-mn[1])/s)+2,nz:Math.ceil((mx[2]-mn[2])/s)+2}, nc=g.nx*g.ny*g.nz, m=T.length/3;
+  const cel=new Int32Array(m), HS=new Uint32Array(nc+1), HI=new Uint32Array(m), TA=new Float32Array(T);
+  for(let j=0;j<m;j++){ cel[j]=(Math.floor((T[j*3+2]-g.z0)/s)*g.ny+Math.floor((T[j*3+1]-g.y0)/s))*g.nx+Math.floor((T[j*3]-g.x0)/s); HS[cel[j]+1]++; }
+  for(let c=0;c<nc;c++) HS[c+1]+=HS[c]; const pos=HS.slice(0,nc); for(let j=0;j<m;j++) HI[pos[cel[j]]++]=j;
+  const sum=(R)=>R.reduce((a,v)=>[a[0]+v[0],a[1]+v[1],a[2]+v[2]],[0,0,0]);
+  const st=sum(await run("nor",(i)=>({...rg(i),T:TA,HS,HI,g,flip:0}))), fr=st[0]/Math.max(1,st[0]+st[1]);
+  if(fr<0.9){ setBusy("Normály: otáčam ku skeneru…"); await tick(); await run("nor",(i)=>({...rg(i),T:TA,HS,HI,g,flip:1})); uploadNormals(); }
+  D.nOri=true; D.nTxt=`normály: ku skeneru smerovalo ${f1(fr*100,1)} %`+(fr<0.9?", otočené podľa trajektórie":"")+(st[2]?` · ${fN(st[2])} bodov ďalej než 20 m od trajektórie neposúdených`:"");
+}
 async function openTraj(file){
-  if(!file||busy) return; if(!D.n){ alert("Najprv otvor mračno."); return; }
+  if(!file) return;
+  if(busy||!D.n){ pendingTraj=file; if(!busy) alert("Trajektória sa načíta hneď po otvorení mračna."); return; }
   setBusy("Čítam trajektóriu…");
   try{
     const C=[]; let ncol=3;
@@ -1165,7 +1243,8 @@ async function openTraj(file){
     gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER,buf); gl.bufferData(gl.ARRAY_BUFFER,A,gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0); gl.bindVertexArray(null);
     D.traj={P:A,n:A.length/3,raw,len,name:file.name,vao,buf,inside};
     if(inside<0.5*raw) alert(`Len ${fN(inside)} z ${fN(raw)} polôh trajektórie leží v rozsahu mračna – súradnice asi nesedia.`);
-    updInfo(); req();
+    await orientNormals();
+    updInfo(); flash(`trajektória načítaná: ${fN(raw)} polôh, ${f1(len,1)} m`);
   }catch(err){ console.error(err); alert("Trajektória: "+err.message); }
   finally{ setBusy(""); }
 }
@@ -1175,20 +1254,22 @@ $("trShow").addEventListener("change",()=>req());
 /* ============ export PLY ============ */
 async function exportPly(){
   if(!D.n||busy) return;
-  const dbl=$("expFmt").value==="d", col=D.hasC, name=D.name.replace(/\.ply$/i,"")+"_upravene.ply";
+  const dbl=$("expFmt").value==="d", col=D.hasC, name=D.name.replace(/\.ply$/i,"")+(+$("expDec").value>1?`_1z${$("expDec").value}`:"_upravene")+".ply";
   let fh=null;
   if(window.showSaveFilePicker){ try{ fh=await showSaveFilePicker({suggestedName:name,types:[{description:"PLY",accept:{"application/octet-stream":[".ply"]}}]}); }
     catch(e){ if(e.name==="AbortError") return; fh=null; } }
   setBusy("Ukladám…");
-  const nOut=[0,1,2].reduce((s,k)=>s+((ui.cv>>k)&1?D.cls[k]:0),0);
   try{
-    const t=dbl?"double":"float", hdr=["ply","format binary_little_endian 1.0","comment PointCloud - P. Herich",`comment zdroj: ${D.name}`,
-      `element vertex ${nOut}`,`property ${t} x`,`property ${t} y`,`property ${t} z`].concat(col?["property uchar red","property uchar green","property uchar blue"]:[]).concat(["end_header",""]).join("\n");
+    const dec=Math.max(1,+$("expDec").value||1), nrm=!!D.N, B=1<<20, job=(a,b,count)=>({a,b,org:D.org,dbl,col,nrm,dec,cv:ui.cv,count}); let nOut=0;
+    for(let s=0;s<D.n;s+=NW*B){ const jobs=[]; for(let i=0;i<NW;i++){ const a=s+i*B, b=Math.min(D.n,a+B); if(a<b) jobs.push(exec(i,"exp",job(a,b,true))); } for(const r of await Promise.all(jobs)) nOut+=r.n; }
+    const t=dbl?"double":"float", hdr=["ply","format binary_little_endian 1.0","comment PointCloud - P. Herich",`comment zdroj: ${D.name}`+(dec>1?` (kazdy ${dec}. bod)`:""),
+      `element vertex ${nOut}`,`property ${t} x`,`property ${t} y`,`property ${t} z`].concat(col?["property uchar red","property uchar green","property uchar blue"]:[])
+      .concat(nrm?["property float nx","property float ny","property float nz"]:[]).concat(["end_header",""]).join("\n");
     const ws=fh?await fh.createWritable():null, parts=[], put=async(b)=>{ if(ws) await ws.write(b); else parts.push(new Blob([b])); };
     await put(new TextEncoder().encode(hdr));
-    const B=1<<20; let written=0;
+    let written=0;
     for(let s=0;s<D.n;s+=NW*B){
-      const jobs=[]; for(let i=0;i<NW;i++){ const a=s+i*B, b=Math.min(D.n,a+B); if(a<b) jobs.push(exec(i,"exp",{a,b,org:D.org,dbl,col,cv:ui.cv})); }
+      const jobs=[]; for(let i=0;i<NW;i++){ const a=s+i*B, b=Math.min(D.n,a+B); if(a<b) jobs.push(exec(i,"exp",job(a,b,false))); }
       for(const r of await Promise.all(jobs)){ if(r.n) await put(new Uint8Array(r.buf)); written+=r.n; }
       setBusy(`Ukladám… ${f1(Math.min(100,(s+NW*B)/D.n*100),0)} %`);
     }
@@ -1207,12 +1288,15 @@ $("bLasso").addEventListener("click",()=>setLasso(!ui.lasso));
 document.querySelectorAll("[data-a]").forEach((b)=>b.addEventListener("click",()=>act(b.dataset.a)));
 document.querySelectorAll("[data-v]").forEach((b)=>b.addEventListener("click",()=>view(b.dataset.v)));
 $("colMode").addEventListener("change",(e)=>{ ui.mode=+e.target.value; req(); });
+function setLit(){ ui.lit=($("nShade").checked?1:0)|($("nCull").checked?2:0); req(); }
+$("nShade").addEventListener("change",setLit); $("nCull").addEventListener("change",setLit);
 $("ps").addEventListener("input",(e)=>{ ui.ps=+e.target.value; req(); });
 $("budget").addEventListener("change",(e)=>{ ui.budget=+e.target.value*1e6; req(); });
 const vw=$("view");
 vw.addEventListener("dragover",(e)=>{ e.preventDefault(); vw.classList.add("drag"); });
 vw.addEventListener("dragleave",()=>vw.classList.remove("drag"));
-vw.addEventListener("drop",(e)=>{ e.preventDefault(); vw.classList.remove("drag"); const f=e.dataTransfer.files[0]; if(f) openFile(f); });
+vw.addEventListener("drop",(e)=>{ e.preventDefault(); vw.classList.remove("drag");
+  for(const f of e.dataTransfer.files){ if(/\.(txt|csv|xyz)$/i.test(f.name)||/traj/i.test(f.name)) openTraj(f); else openFile(f); } });
 new ResizeObserver(()=>req()).observe(vw);
 gl.canvas.addEventListener("webglcontextlost",(e)=>{ e.preventDefault(); $("hint").style.display=""; $("hint").textContent="Grafická karta stratila kontext — obnov stránku."; });
 req();

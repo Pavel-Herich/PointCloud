@@ -1,7 +1,7 @@
 // Skúšobná jaskyňa s ťažkými profilmi. Farba: R = pravda (255 strop, 0 podlaha, 128 nehodnotí sa), G = skupina*16.
-// node skusobna_jaskyna.mjs out.ply [hustota/m2=1500] [šum m=0.01] [počet dier=0] [polomer diery=0.5]
+// node skusobna_jaskyna.mjs out.ply [hustota/m2=1500] [šum m=0.01] [počet dier=0] [polomer diery=0.5] [trajektoria.txt] [n | f]
 import fs from "fs";
-const OUT=process.argv[2], DENS=+(process.argv[3]||1500), NOISE=+(process.argv[4]||0.01), NH=+(process.argv[5]||0), HR=+(process.argv[6]||0.5), TRAJ=process.argv[7]||"";
+const OUT=process.argv[2], DENS=+(process.argv[3]||1500), NOISE=+(process.argv[4]||0.01), NH=+(process.argv[5]||0), HR=+(process.argv[6]||0.5), TRAJ=process.argv[7]||"", NRM=process.argv[8]||"";   // NRM: n = normály do vzduchu, f = pre x>50 otočené
 let sd=987654321; const R=()=>{ sd^=sd<<13; sd^=sd>>>17; sd^=sd<<5; return (sd>>>0)/4294967296; };
 const TOL=0.05, C=255, F=0, X_=128;
 const split=(z,zm)=>Math.abs(z-zm)<TOL?X_:(z>zm?C:F);
@@ -42,6 +42,19 @@ A.push({ins:(x,y,z)=>y>-12&&y<12&&(x-75)**2+(z+10)**2<2.25,area:2*Math.PI*1.5*24
 A.push({ins:inCh,area:1000,smp:()=>{ const u=R()*2-1, a=R()*2*Math.PI, q=Math.sqrt(1-u*u), z=CH[2]+CH[5]*u; return [CH[0]+CH[3]*q*Math.cos(a),CH[1]+CH[4]*q*Math.sin(a),z,split(z,0),11]; }});
 // 8 plazivka (priemer 0,6 m) z rúry 1 do boku; len vo variante s trajektóriou, jej ústie zakryje diera v skenovaní
 if(TRAJ) A.push({ins:(x,y,z)=>y>-8&&y<-1.5&&(x-6)**2+(z+1.2)**2<0.09,area:2*Math.PI*0.3*6.5,smp:()=>{ const a=R()*2*Math.PI, z=-1.2+0.3*Math.sin(a); return [6+0.3*Math.cos(a),-8+R()*6.5,z,split(z,-1.2),15+1]; }});
+// 17 strmá puklina: stúpa 30° pozdĺž x, priečny rez je rovnobežník naklonený 65°; v 2/3 dĺžky má tupé okraje (zvislá stienka 1 m) – tam kotvy nevzniknú
+const FX0=115, FX1=155, FS_=Math.tan(30*Math.PI/180), FT=Math.tan(65*Math.PI/180), FSN=Math.sin(65*Math.PI/180), FH=6, FW=1.5;
+const fz0=(x)=>-1+FS_*(x-FX0), fv=(x)=>Math.floor((x-FX0)/4)%3===0?0:1;
+const inFis=(x,y,z)=>{ if(!(x>FX0&&x<FX1)) return false; const u=z-fz0(x), v=fv(x); return u>0&&u<FH&&y>Math.max(0,(u-v)/FT)&&y<Math.min(FW+u/FT,FW+(FH-v)/FT); };
+A.push({ins:inFis,area:(FX1-FX0)/Math.cos(30*Math.PI/180)*(2*FW+2*FH/FSN),smp:()=>{ const x=FX0+R()*(FX1-FX0), v=fv(x), sl=(FH-v)/FSN, a=(FH-v)/FT; let w=R()*(2*FW+2*v+2*sl), y, u, t;
+  if(w<FW){ y=w; u=0; t=(v===0&&y<TOL)?X_:F; }                                             // dno
+  else if((w-=FW)<v){ y=0; u=w; t=X_; }                                                    // ľavá zvislá stienka
+  else if((w-=v)<sl){ u=v+w*FSN; y=(u-v)/FT; t=(v===0&&u<TOL)?X_:C; }                      // nadložná stena
+  else if((w-=sl)<FW){ y=a+w; u=FH; t=(v===0&&w>FW-TOL)?X_:C; }                            // strop
+  else if((w-=FW)<v){ y=FW+a; u=FH-w; t=X_; }                                              // pravá zvislá stienka
+  else { w-=v; u=w*FSN; y=FW+u/FT; t=(v===0&&u>FH-TOL)?X_:F; }                             // podložná stena
+  return [x,y,fz0(x)+u,t,17]; }});
+cylX(105,115.5,0.7,18,()=>X_);                                                              // spojka zo siene (nehodnotí sa)
 // ---- prekážky (hornina vo vzduchu): ins, area, smp
 const B=[];
 const cone=(cx,cy,zb,zt,rb,g,tr)=>B.push({ins:(x,y,z)=>{ const t=(z-zb)/(zt-zb); return t>0&&t<1&&Math.hypot(x-cx,y-cy)<rb*(1-t); },area:Math.PI*rb*Math.hypot(rb,zt-zb),
@@ -59,15 +72,20 @@ for(const s of A){ const n=Math.round(s.area*DENS); for(let i=0;i<n;i++){ const 
 for(const s of B){ const n=Math.round(s.area*DENS); for(let i=0;i<n;i++){ const p=s.smp(); if(!inAir(p[0],p[1],p[2])||inRock(p[0],p[1],p[2],s)) continue; P.push(p); } }
 // čelá na stykoch sekcií (zvislé steny, nehodnotia sa)
 for(const xj of [12,26,40,54,68]){ const n=Math.round(14*10*DENS); for(let i=0;i<n;i++){ const y=-7+R()*14, z=-5+R()*10; if(inAir(xj-0.01,y,z)!==inAir(xj+0.01,y,z)) P.push([xj,y,z,X_,0]); } }
+for(let xj=FX0;xj<=FX1;xj+=4){ const n=Math.round(7*8*DENS); for(let i=0;i<n;i++){ const y=-1+R()*7, z=fz0(xj)-1+R()*8; if(inAir(xj-0.01,y,z)!==inAir(xj+0.01,y,z)) P.push([xj,y,z,X_,0]); } }
 // diery v skenovaní
 const holes=Array.from({length:NH},()=>P[Math.floor(R()*P.length)].slice(0,3).concat(HR)); if(TRAJ) holes.push([6,-1.75,-1.2,0.6]);
 const Q=holes.length?P.filter((p)=>!holes.some((h)=>(p[0]-h[0])**2+(p[1]-h[1])**2+(p[2]-h[2])**2<h[3]*h[3])):P;
-const n=Q.length, st=15, head=["ply","format binary_little_endian 1.0",`element vertex ${n}`,"property float x","property float y","property float z","property uchar red","property uchar green","property uchar blue","end_header",""].join("\n");
-const b=Buffer.alloc(n*st); Q.forEach((p,i)=>{ const o=i*st; for(let k=0;k<3;k++) b.writeFloatLE(p[k]+NOISE*(R()-0.5)*2,o+k*4); b[o+12]=p[3]; b[o+13]=Math.min(15,p[4])*16; b[o+14]=p[4]>15?255:0; });
+const DIR=[]; for(let i=-1;i<=1;i++) for(let j=-1;j<=1;j++) for(let k=-1;k<=1;k++){ if(!i&&!j&&!k) continue; const l=Math.hypot(i,j,k); DIR.push([i/l,j/l,k/l]); }
+const isAir=(x,y,z)=>inAir(x,y,z)&&!inRock(x,y,z);
+const nrm=(p)=>{ let nx=0, ny=0, nz=0; for(const d of DIR) if(isAir(p[0]+0.04*d[0],p[1]+0.04*d[1],p[2]+0.04*d[2])){ nx+=d[0]; ny+=d[1]; nz+=d[2]; } const l=Math.hypot(nx,ny,nz)||1; return [nx/l,ny/l,nz/l]; };
+const n=Q.length, st=NRM?27:15, head=["ply","format binary_little_endian 1.0",`element vertex ${n}`,"property float x","property float y","property float z"].concat(NRM?["property float nx","property float ny","property float nz"]:[],["property uchar red","property uchar green","property uchar blue","end_header",""]).join("\n");
+const b=Buffer.alloc(n*st); Q.forEach((p,i)=>{ let o=i*st; if(NRM){ const v=nrm(p), s=(NRM==="f"&&p[0]>50)?-1:1; for(let k=0;k<3;k++) b.writeFloatLE(s*v[k],o+12+k*4); }
+  for(let k=0;k<3;k++) b.writeFloatLE(p[k]+NOISE*(R()-0.5)*2,o+k*4); o+=st-3; b[o]=p[3]; b[o+1]=Math.min(15,p[4])*16; b[o+2]=Math.max(0,p[4]-15)*64; });
 fs.writeFileSync(OUT,Buffer.concat([Buffer.from(head),b]));
 const cnt={}; for(const p of Q) cnt[p[4]]=(cnt[p[4]]||0)+1; console.log("bodov",n,JSON.stringify(cnt),"sklon5",SLOPE5.toFixed(3));
 
-if(TRAJ){ const W=[[1,0,-0.9],[6,0,-0.9],[6,-1.5,-1.2],[6,-7.6,-1.2],[6,-1.5,-1.2],[6,0,-0.9],[11,0,-0.9],[13,0,-2.3],[39,0,-2.3],[41,0,-0.9],[53,0,-0.9],[55,0,-0.3],[67,0,-0.3],[69,0,-0.9],[82,0,-0.9],[86,0,-2.4],[95,-2,-3.8]];
+if(TRAJ){ const W=[[1,0,-0.9],[6,0,-0.9],[6,-1.5,-1.2],[6,-7.6,-1.2],[6,-1.5,-1.2],[6,0,-0.9],[11,0,-0.9],[13,0,-2.3],[39,0,-2.3],[41,0,-0.9],[53,0,-0.9],[55,0,-0.3],[67,0,-0.3],[69,0,-0.9],[82,0,-0.9],[86,0,-2.4],[95,-2,-3.8],[104,0,0],[115.5,0.4,0]].concat(Array.from({length:20},(_,i)=>{ const x=116+i*2; return [x,2.1,fz0(x)+3]; }));
   const L=["%time x y z q0 q1 q2 q3 userfields"]; let t=1456612185.68;
   for(let k=0;k+1<W.length;k++){ const a=W[k], c=W[k+1], d=Math.hypot(c[0]-a[0],c[1]-a[1],c[2]-a[2]), m=Math.ceil(d/0.01);
     for(let i=0;i<m;i++){ const f=i/m; L.push(`${(t+=0.01).toFixed(5)} ${a[0]+(c[0]-a[0])*f+0.02*(R()-0.5)} ${a[1]+(c[1]-a[1])*f+0.02*(R()-0.5)} ${a[2]+(c[2]-a[2])*f+0.02*(R()-0.5)} 1 0 0 0 `); } }
