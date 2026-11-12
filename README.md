@@ -3,7 +3,7 @@
 Mračná bodov jaskýň v prehliadači (vo vývoji, neskôr modul PreTherionu).
 
 - `index.html` — úvodná stránka
-- `mracno.html` — práca s mračnom (etapy 1–2): načítanie PLY (binárne aj ASCII) vo vláknach, zobrazenie s riedením pri pohybe, strihanie lasom a kvádrom, krok späť, export binárneho PLY (float32 alebo float64, aj každý N-tý bod), normály (tieňovanie, priehľad cez prednú stenu), trajektória skenera, oddelenie stropu od podlahy
+- `mracno.html` — práca s mračnom (etapy 1–2): načítanie PLY (binárne aj ASCII) vo vláknach, zobrazenie s riedením pri pohybe, strihanie lasom a kvádrom, krok späť, export binárneho PLY (float32 alebo float64, aj každý N-tý bod), zvýraznenie tvaru (EDL), úplný priehľad cez prednú stenu podľa modelu jaskyne, normály, trajektória skenera, oddelenie stropu od podlahy
 - `mracno_test.html` — test počítača: pamäť, vlákna, úložisko, čítanie PLY, kreslenie bodov
 - `coi-sw.js` — service worker, ktorý doplní hlavičky COOP/COEP (GitHub Pages ich nevie nastaviť); stránka je potom *cross-origin isolated* a vlákna môžu zdieľať pamäť (`SharedArrayBuffer`)
 
@@ -18,19 +18,28 @@ Mračná sa nikam nenahrávajú — prehliadač ich číta priamo z disku.
 
 Body sa držia v pamäti ako float32 voči lokálnemu počiatku (prvý bod zaokrúhlený na metre), pri exporte sa počiatok pripočíta späť. Ďalšie vlastnosti bodov (čas, intenzita) sa zatiaľ nenačítavajú, v paneli sa len vypíšu ich názvy. Cieľový prehliadač je Chrome alebo Edge cez https (GitHub Pages) alebo localhost — vtedy beží izolácia a všetky vlákna pracujú nad spoločnou pamäťou.
 
+## Zobrazenie
+
+- **veľkosť bodu v priestore** — bod má veľkosť v centimetroch: zblízka sa zväčší a zaplní medzery, z diaľky ostane na najmenšej veľkosti (posuvník „bod“). Po načítaní sa nastaví na 5-násobok typickej vzdialenosti k najbližšiemu susedovi (vypíše sa v paneli). Väčšie body sú okrúhle.
+- **zvýrazniť tvar** — eye-dome lighting: bod obrazu stmavne, ak je ďalej než jeho susedia. Tvar vynikne aj bez normál a pri jednofarebnom mračne. Dierky veľké 1 – 2 pixely sa zaplnia farbou okolia.
+- **úplný priehľad podľa modelu jaskyne** — bod sa kreslí len vtedy, keď k nemu pohľad prichádza vzduchom jaskyne (tri vzorky 1,5 – 5 voxelov pred bodom smerom k oku). Stena videná zo strany horniny zmizne celá, z každej vzdialenosti; šum ani záhyby povrchu nevadia, lebo sa nerozhoduje podľa normál jednotlivých bodov. Používa hrubý model vzduchu (ten istý ako delenie stropu a podlahy); ak ešte nie je, postaví sa pri zaškrtnutí. Body ďalej než asi 1 m od vzduchu modelu (úzke plazivky, povrch) ostávajú viditeľné.
+- pri pohybe sa kreslí len časť bodov (voľba „body pri pohybe“) a body sa primerane zväčšia
+
 ## Normály
 
 Ak má PLY normály (`nx ny nz` alebo `normal_x …`), načítajú sa (2 bajty na bod) a uložia sa aj pri exporte.
 
 - **tieňovať** — jas bodu podľa uhla medzi normálou a smerom pohľadu; vynikne tvar stien
-- **priehľad cez prednú stenu** — body, ktorých normála smeruje od pozorovateľa, sa nekreslia: pri pohľade zvonka zmizne bližšia stena a vidno do chodby. Normály musia smerovať do vzduchu (k skeneru).
+- **priehľad cez prednú stenu** — body, ktorých normála smeruje od pozorovateľa, sa nekreslia. Normály musia smerovať do vzduchu (k skeneru). Pri zašumenom mračne ostane z prednej steny závoj bodov s odchýlenou normálou, z diaľky nepriehľadný – vtedy použi úplný priehľad podľa modelu.
 - farba **sklon (normály)** — modrá plochy otočené nadol (strop), oranžová nahor (podlaha), sivozelená zvislé steny
 
-Po načítaní trajektórie sa normály porovnajú s najbližšou polohou skenera (do 20 m). Ak k nemu smeruje menej než 90 % normál, tie opačné sa otočia; výsledok sa vypíše v paneli.
+Po načítaní trajektórie sa vypíše, koľko percent normál smeruje k najbližšej polohe skenera (do 20 m). Tlačidlo „Normály k trajektórii“ tie opačné otočí – použi ho, až keď trajektória sedí s mračnom.
 
 ## Trajektória skenera
 
 Tlačidlo „Trajektória…“ načíta dráhu skenera v súradniciach mračna: GeoSLAM `*_results_traj.txt` (`%time x y z q0 q1 q2 q3`), iný text so stĺpcami `x y z` alebo `čas x y z`, alebo PLY. Zobrazí sa ako zelená čiara. Dá sa zadať tlačidlom alebo pustením súboru do okna, aj počas čítania mračna alebo pred ním – načíta sa hneď po mračne. Pri delení stropu a podlahy slúži ako istý vzduch: kde poloha skenera nie je vo vzduchu modelu, vznikne nový zárodok (úzke plazivky, miesta za dierou v skenovaní), a vrstva, ktorou skener prešiel, sa nikdy neberie ako vrecko. V paneli sa vypíše, koľko percent trajektórie leží vo vzduchu hrubého modelu – nízke číslo znamená, že model vzduch nenašiel dobre (skús menšiu uzavretosť alebo menší voxel).
+
+**Trajektória, ktorá nesedí s mračnom.** Ak vo vzduchu hrubého modelu leží menej než 70 % polôh, trajektória sa pri delení nepoužije. „Zarovnať na mračno“ hľadá posun (bez otočenia, do ±10 m), pri ktorom leží vo vzduchu najviac polôh: hrubá mriežka po 0,5 m, 30 najlepších miestnych maxím sa doladí po 0,1 a 0,02 m. V paneli sa vypíše posun a podiel vo vzduchu pred a po. Skúška: trajektória posunutá o 1,3 · −0,8 · 0,6 m sa vrátila s odchýlkou do 8 cm, podiel vo vzduchu 38 % → 92 %.
 
 ## Strop a podlaha
 
@@ -53,7 +62,7 @@ Tlačidlo „Trajektória…“ načíta dráhu skenera v súradniciach mračna:
 - **prvé body zhora** — najvyšší povrch v bunke (3. najvyšší bod, aby osamelé body nad stropom nevadili); body do zvolenej hrúbky pod ním sú strop, ostatné podlaha
 - **vrstvy (medzery)** — medzery väčšie ako „medzera“ rozdelia body v bunke na vrstvy; zhora sa striedajú strop, podlaha, strop… (poschodia). Vrstva vyššia ako „stena od“ sa delí v polovici.
 
-Triedy sa dajú zobraziť alebo skryť, vybrať a ručne opraviť lasom („Výber → strop / podlaha“). Laso, kváder, mazanie aj uloženie pôsobia len na zobrazené triedy — napríklad uloženie samotného stropu.
+Triedy sa dajú zobraziť alebo skryť, vybrať („Vybrať strop / podlahu“, so Shift pridať k výberu), odznačiť („Odznačiť strop / podlahu“) a ručne opraviť lasom („Výber → strop / podlaha“). Laso, kváder, mazanie aj uloženie pôsobia len na zobrazené triedy — napríklad uloženie samotného stropu.
 
 ## Skúšobná jaskyňa
 
