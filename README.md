@@ -22,7 +22,12 @@ Body sa držia v pamäti ako float32 voči lokálnemu počiatku (prvý bod zaokr
 
 - **veľkosť bodu v priestore** — bod má veľkosť v centimetroch: zblízka sa zväčší a zaplní medzery, z diaľky ostane na najmenšej veľkosti (posuvník „bod“). Po načítaní sa nastaví na 5-násobok typickej vzdialenosti k najbližšiemu susedovi (vypíše sa v paneli). Väčšie body sú okrúhle.
 - **zvýrazniť tvar** — eye-dome lighting: bod obrazu stmavne, ak je ďalej než jeho susedia. Tvar vynikne aj bez normál a pri jednofarebnom mračne. Dierky veľké 1 – 2 pixely sa zaplnia farbou okolia.
-- **úplný priehľad podľa modelu jaskyne** — bod sa kreslí len vtedy, keď k nemu pohľad prichádza vzduchom jaskyne (tri vzorky 1,5 – 5 voxelov pred bodom smerom k oku). Stena videná zo strany horniny zmizne celá, z každej vzdialenosti; šum ani záhyby povrchu nevadia, lebo sa nerozhoduje podľa normál jednotlivých bodov. Používa hrubý model vzduchu (ten istý ako delenie stropu a podlahy); ak ešte nie je, postaví sa pri zaškrtnutí. Body ďalej než asi 1 m od vzduchu modelu (úzke plazivky, povrch) ostávajú viditeľné.
+- **úplný priehľad podľa modelu jaskyne** — rozhoduje vzduch modelu pred bodom (smerom k oku) a za ním, po troch vzorkách 1,5 – 5 voxelov:
+  - vzduch pred bodom: bod je vidno;
+  - vzduch len za bodom: stena videná zo strany horniny, skryje sa celá, z každej vzdialenosti;
+  - vzduch ani pred, ani za (okraj pôdorysu, nízke a úzke miesta): strop sa skryje pri pohľade zhora, podlaha pri pohľade zdola, nezaradené body ostávajú. Pôdorys pri pohľade zhora tak ostáva úplný.
+
+  Šum ani záhyby povrchu nevadia, lebo sa nerozhoduje podľa normál jednotlivých bodov. Používa hrubý model vzduchu, po delení blanou doplnený jemným modelom (siaha až k stenám); ak model ešte nie je, postaví sa pri zaškrtnutí. Body ďalej než asi 1 m od vzduchu modelu (povrch, nezmodelované časti) ostávajú viditeľné.
 - pri pohybe sa kreslí len časť bodov (voľba „body pri pohybe“) a body sa primerane zväčšia
 
 ## Normály

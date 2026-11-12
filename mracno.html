@@ -766,8 +766,12 @@ vec3 ramp(float t){ t=clamp(t,0.0,1.0); return clamp(vec3(1.5-abs(4.0*t-3.0),1.5
 void main(){
   vec3 vd=normalize(eye-p), nn=octn(ne); float fd=dot(nn,vd);
   bool hide=m>=2u||((cv>>int(k))&1)==0||(bon==1&&(any(lessThan(p,bmn))||any(greaterThan(p,bmx))))||((lit&2)!=0&&fd<-0.05);
-  // priehľad podľa modelu: bod je vidno len vtedy, keď k nemu lúč od oka prichádza vzduchom jaskyne (3 vzorky 1,5 – 5 voxelov pred bodom)
-  if(!hide&&(lit&4)!=0){ vec3 d=p-a0; if(texture(nearT,d*nis).r>0.5){ vec3 q=d*ais, st=vd*ais*ah; hide=max(texture(airT,q+st*1.5).r,max(texture(airT,q+st*3.0).r,texture(airT,q+st*5.0).r))<0.5; } }
+  // priehľad podľa modelu: 3 vzorky vzduchu 1,5 – 5 voxelov pred bodom (k oku) a za ním. Vzduch pred bodom: vidno. Vzduch len za bodom: stena videná z horniny, skryť.
+  // Vzduch ani pred, ani za (okraj pôdorysu, nízke a úzke miesta, kam hrubý model nesiaha): strop sa skryje pri pohľade zhora, podlaha pri pohľade zdola, ostatné ostáva.
+  if(!hide&&(lit&4)!=0){ vec3 d=p-a0; if(texture(nearT,d*nis).r>0.5){ vec3 q=d*ais, st=vd*ais*ah;
+    if(max(texture(airT,q+st*1.5).r,max(texture(airT,q+st*3.0).r,texture(airT,q+st*5.0).r))<0.5){
+      if(max(texture(airT,q-st*1.5).r,max(texture(airT,q-st*3.0).r,texture(airT,q-st*5.0).r))>=0.5) hide=true;
+      else hide=(k==1u&&vd.z>0.15)||(k==2u&&vd.z<-0.15); } } }
   if(hide){ gl_Position=vec4(2.0,2.0,2.0,1.0); gl_PointSize=1.0; v=vec3(0.0); sz=1.0; return; }
   gl_Position=mvp*vec4(p,1.0); sz=clamp(sw/gl_Position.w,ps,pmax); gl_PointSize=sz;
   ${pick?"v=p;":"vec3 cc=k==1u?vec3(0.32,0.62,1.0):k==2u?vec3(0.95,0.63,0.22):vec3(0.62); vec3 col=mode==0?c.rgb:mode==1?ramp((p.z-zr.x)/max(zr.y-zr.x,1e-6)):mode==2?cc*(0.35+0.65*dot(c.rgb,vec3(0.3,0.59,0.11))):mix(mix(vec3(0.55,0.75,0.5),vec3(0.95,0.63,0.22),clamp(nn.z,0.0,1.0)),vec3(0.32,0.62,1.0),clamp(-nn.z,0.0,1.0)); if((lit&1)!=0) col*=0.3+0.7*abs(fd); if(m==1u) col=mix(col,vec3(1.0,0.82,0.1),0.75); v=col;"}
@@ -1196,7 +1200,8 @@ async function classifyBlana(cell){
     if(performance.now()-tl>300){ tl=performance.now(); setBusy(`Blana: napínam… (${fN(sweeps)} krokov, zmena ${f1(mx*1000,3)} mm)`); await tick(); } }
   const t3=performance.now(); setBusy("Blana: triedim body…"); await tick();
   await run("cfb",(i)=>({...rg(i),...B,FB:L.FB.buffer,CT:L.CT.buffer,MV:H.MV,SEC:H.SEC,g:L.g,R:Math.ceil(0.5/L.c),Rd:0.6}));
-  L.Z=null; L.CS=null; D.air=air; if($("nCullM").checked) buildAirTex(air); else freeAirTex(); D.lvl={...L,SEC:new Uint8Array(H.SEC),FX:new Uint8Array(H.FX),MV:new Float64Array(H.MV),NB:new Int32Array(H.NB),DS:new Int32Array(H.DS),st:H};
+  L.Z=null; L.CS=null; D.air=air; D.lvl={...L,SEC:new Uint8Array(H.SEC),FX:new Uint8Array(H.FX),MV:new Float64Array(H.MV),NB:new Int32Array(H.NB),DS:new Int32Array(H.DS),st:H};
+  if($("nCullM").checked) buildAirTex(air); else freeAirTex();
   buildBlanaVis(D.lvl);
   return air.txt+`\nblana: bunka ${f1(L.c,2)} m · ${fN(n)} úsekov vzduchu, z toho ${fN(L.grown)} dorastených · plytkých výklenkov zrušených ${fN(L.nnp)} · vreciek ${fN(H.nPk)} · kotiev ${fN(H.nAn)} · medzera od ${f1(L.g0*100,0)} cm`+
     (D.traj&&air.trf>=0.7?`\ntrajektória: ${fN(L.tall)} polôh, z nich ${fN(L.tin)} už vo vzduchu modelu, ${fN(L.nts)} nových zárodkov`:"")+"\n"+
@@ -1228,6 +1233,11 @@ function buildAirTex(a){
   for(let y=0;y<g.ny;y++) for(let x=0;x<g.nx;x++){ const c=y*g.nx+x, o=(y>>s)*nx+(x>>s); for(let q=CS[c];q<CS[c+1];q++) for(let z=RZ[2*q]>>s, z1=RZ[2*q+1]>>s;z<=z1;z++) A[z*Sl+o]=255; }
   const i0=Sl+nx+1, i1=N-Sl-nx-1, pass=(src,dst,o,mx)=>{ if(mx) for(let i=i0;i<i1;i++){ const u=src[i-o], v=src[i], w=src[i+o]; dst[i]=u>v?(u>w?u:w):(v>w?v:w); } else for(let i=i0;i<i1;i++) dst[i]=(src[i-o]+2*src[i]+src[i+o]+2)>>2; };
   for(let k=s?Math.min(1,a.r):a.r;k>0;k--){ pass(A,B,1,true); pass(B,A,nx,true); pass(A,B,Sl,true); const t=A; A=B; B=t; }
+  // jemný úrovňový model (po delení blanou): voxel, ktorý leží celý vo výške úseku vzduchu jemnej bunky
+  const L=D.lvl; if(L&&L.FS){ const lg=L.g, ih=1/hh;
+    for(let cy=0;cy<lg.ny;cy++){ const vy=Math.floor((lg.y0+(cy+0.5)*lg.c-g.y0)*ih); if(vy<1||vy>=ny-1) continue;
+      for(let cx=0;cx<lg.nx;cx++){ const c=cy*lg.nx+cx, q0=L.FS[c], q1=L.FS[c+1]; if(q0===q1) continue; const vx=Math.floor((lg.x0+(cx+0.5)*lg.c-g.x0)*ih); if(vx<1||vx>=nx-1) continue; const o=vy*nx+vx;
+        for(let q=q0;q<q1;q++){ const za=Math.max(1,Math.ceil((L.ZF[q]-g.z0)*ih)), zb=Math.min(nz-2,Math.floor((L.ZC[q]-g.z0)*ih)-1); for(let z=za;z<=zb;z++) A[z*Sl+o]=255; } } } }
   // maska blízkosti: bunky 5 voxelov, v ktorých alebo vedľa ktorých je vzduch
   const mx=Math.ceil(nx/5), my=Math.ceil(ny/5), mz=Math.ceil(nz/5), Mq=new Uint8Array(mx*my*mz), M2=new Uint8Array(mx*my*mz);
   for(let z=0;z<nz;z++) for(let y=0;y<ny;y++){ const r=(z*ny+y)*nx, mr=(Math.floor(z/5)*my+Math.floor(y/5))*mx; for(let x=0;x<nx;x++) if(A[r+x]) Mq[mr+Math.floor(x/5)]=1; }
