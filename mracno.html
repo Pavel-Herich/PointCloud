@@ -45,7 +45,7 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
 <body>
 <div id="app">
 <aside>
-  <h1><a href="index.html">PointCloud</a> <span class="k">· etapa 2d</span></h1>
+  <h1><a href="index.html">PointCloud</a> <span class="k">· etapa 2e</span></h1>
 
   <section>
     <h2>Súbor</h2>
@@ -59,6 +59,8 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
       <label class="k"><input type="checkbox" id="trShow" checked> zobraziť</label></div>
     <div class="row"><button id="bTrAl" disabled title="Nájde posun trajektórie (bez otočenia, do 10 m), pri ktorom leží najviac polôh skenera vo vzduchu modelu jaskyne">Zarovnať na mračno</button>
       <button id="bNorT" disabled title="Otočí normály, ktoré smerujú od najbližšej polohy skenera. Použi až keď trajektória sedí s mračnom.">Normály k trajektórii</button></div>
+    <div class="row" title="Ručný posun trajektórie v metroch (X, Y, Z). Mení sa aj kolieskom myši nad poľom alebo šípkami; zarovnanie sem zapíše nájdený posun."><span class="k">posun</span>
+      <input type="number" id="trDx" value="0" step="0.05" disabled style="width:4.6em"><input type="number" id="trDy" value="0" step="0.05" disabled style="width:4.6em"><input type="number" id="trDz" value="0" step="0.05" disabled style="width:4.6em"> <span class="k">m</span></div>
     <pre id="info">Žiadne mračno.</pre>
   </section>
 
@@ -69,7 +71,11 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
     <div class="row"><label class="k" title="Bod má veľkosť v priestore: zblízka sa zväčší a zaplní medzery, z diaľky ostane najmenší"><input type="checkbox" id="psW" checked> veľkosť bodu v priestore</label>
       <label class="k"><input type="number" id="psCm" value="2" min="0.2" max="30" step="0.5" style="width:3.6em"> cm</label></div>
     <div class="row"><label class="k" title="Eye-dome lighting: stmaví body, ktoré sú ďalej než ich susedia v obraze – vynikne tvar aj bez normál a farieb"><input type="checkbox" id="edl" checked> zvýrazniť tvar</label>
-      <label class="k">sila <input type="range" id="edlS" min="0.1" max="2" step="0.1" value="0.7"></label></div>
+      <label class="k">sila <input type="range" id="edlS" min="0.1" max="2" step="0.1" value="0.5"></label></div>
+    <div class="row"><label class="k" title="Osvetlenie plochy zľava zhora; sklon plochy sa počíta z vyhladenej hĺbky obrazu, netreba normály">plastickosť <input type="range" id="shS" min="0" max="1.5" step="0.1" value="0.8"></label></div>
+    <div class="row"><label class="k" title="Vyhladenie hĺbky v obraze (v pixeloch): menej bodkovaný obraz, hrany ostávajú ostré. 0 = bez vyhladenia.">vyhladenie <input type="range" id="smR" min="0" max="12" step="1" value="4"></label></div>
+    <div class="row"><label class="k">jas <input type="range" id="bri" min="0.5" max="3" step="0.1" value="1.3"></label>
+      <label class="k">pozadie <select id="bgSel"><option value="0">tmavé</option><option value="1">čierne</option><option value="2">sivé</option><option value="3">svetlé</option><option value="4">biele</option></select></label></div>
     <div class="row"><label class="k">body pri pohybe <select id="budget"><option value="5">5 mil.</option><option value="10">10 mil.</option><option value="20" selected>20 mil.</option><option value="40">40 mil.</option><option value="80">80 mil.</option></select></label></div>
     <div class="row"><label class="k" title="Osvetlenie od kamery podľa normál zo súboru"><input type="checkbox" id="nShade" disabled> tieňovať</label>
       <label class="k" title="Nekreslí body odvrátené od kamery – do chodby vidno zvonka cez prednú stenu. Normály musia smerovať do vzduchu (ku skeneru)."><input type="checkbox" id="nCull" disabled> priehľad cez prednú stenu</label></div>
@@ -404,11 +410,11 @@ function KERNELS(){
       for(let d=0;d<4&&!thin;d++){ const xx=x+DX[d], yy=y+DY[d]; if(xx<0||yy<0||xx>=nx||yy>=ny) continue;
         for(let j=head[yy*nx+xx];j>=0;j=nxt[j]) if(ov(q,j)>0&&zc[j]-zf[j]<4*hq){ thin=true; break; } }
       if(thin) continue; kill(q); slv++; }
-    const m=n-bad, FS=new Uint32Array(mk((nc+1)*4)), oF=new Float32Array(mk(Math.max(1,m)*4)), oC=new Float32Array(mk(Math.max(1,m)*4)), oW=new Uint8Array(mk(Math.max(1,m))), oT=new Uint8Array(mk(Math.max(1,m)));
+    const m=n-bad, FS=new Uint32Array(mk((nc+1)*4)), oF=new Float32Array(mk(Math.max(1,m)*4)), oC=new Float32Array(mk(Math.max(1,m)*4)), oW=new Uint8Array(mk(Math.max(1,m))), oT=new Uint8Array(mk(Math.max(1,m))), oN=new Uint8Array(mk(Math.max(1,m)));
     for(let q=0;q<n;q++) if(cel[q]>=0) FS[cel[q]+1]++;
     for(let c=0;c<nc;c++) FS[c+1]+=FS[c];
     const tmp=[]; for(let c=0;c<nc;c++){ if(head[c]<0) continue; tmp.length=0; for(let j=head[c];j>=0;j=nxt[j]) tmp.push(j);
-      if(tmp.length>1) tmp.sort((p,q)=>zf[p]-zf[q]); let o=FS[c]; for(const j of tmp){ oF[o]=zf[j]; oC[o]=zc[j]; oW[o]=wb[j]; oT[o]=tf[j]; o++; } }
+      if(tmp.length>1) tmp.sort((p,q)=>zf[p]-zf[q]); let o=FS[c]; for(const j of tmp){ oF[o]=zf[j]; oC[o]=zc[j]; oW[o]=wb[j]; oT[o]=tf[j]; oN[o]=nf[j]; o++; } }
     // súvislý zhluk bodov pod dnom (FB) a nad stropom (CT) úseku v jeho vlastnej bunke: to je povrch, ktorý úsek ohraničuje (strmá stena má v bunke aj meter)
     const oB=new Float32Array(mk(Math.max(1,m)*4)), oU=new Float32Array(mk(Math.max(1,m)*4)), lim=1.5;
     for(let c=0;c<nc;c++){ const s=CS[c], e=CS[c+1], q0=FS[c], q1=FS[c+1]; if(q0===q1) continue;
@@ -417,10 +423,10 @@ function KERNELS(){
         let j=lb(Z,oC[o]-1e-4,s,e), zt=oC[o];
         if(j<e&&Z[j]<=oC[o]+1e-4){ zt=Z[j]; while(j+1<e&&Z[j+1]-zt<g0&&Z[j+1]-oC[o]<=lim){ j++; zt=Z[j]; } } oU[o]=zt; }
       for(let o=q0;o+1<q1;o++) if(oU[o]>=oB[o+1]){ const md=(oC[o]+oF[o+1])*0.5; oU[o]=md; oB[o+1]=md; } }
-    return {r:{FS:FS.buffer,ZF:oF.buffer,ZC:oC.buffer,WB:oW.buffer,TF:oT.buffer,FB:oB.buffer,CT:oU.buffer,nts,tin,tall,n:m,seeds:ns,grown:n-ns,ext:ext2,slv,nnp,nrock,nwall}}; },
+    return {r:{FS:FS.buffer,ZF:oF.buffer,ZC:oC.buffer,WB:oW.buffer,TF:oT.buffer,NF:oN.buffer,FB:oB.buffer,CT:oU.buffer,nts,tin,tall,n:m,seeds:ns,grown:n-ns,ext:ext2,slv,nnp,nrock,nwall}}; },
   /* úrovne a kotvy blany. SEC: 0 = úroveň, 1/2 = vedľajšie vrecko nad/pod hlavnou úrovňou (celé strop/podlaha).
      FX: 0 = voľný uzol, 1 = kotva (okraj pôdorysu), 2 = vrecko. MV = výška blany. */
-  sheet(S,a){ const FS=new Uint32Array(a.FS), ZF=new Float32Array(a.ZF), ZC=new Float32Array(a.ZC), WB=new Uint8Array(a.WB), TF=new Uint8Array(a.TF), g=a.g, nx=g.nx, ny=g.ny, nc=nx*ny, n=FS[nc], c=g.c;
+  sheet(S,a){ const FS=new Uint32Array(a.FS), ZF=new Float32Array(a.ZF), ZC=new Float32Array(a.ZC), WB=new Uint8Array(a.WB), TF=new Uint8Array(a.TF), NF=new Uint8Array(a.NF), g=a.g, nx=g.nx, ny=g.ny, nc=nx*ny, n=FS[nc], c=g.c;
     const mk=(b)=>a.shared?new SharedArrayBuffer(b):new ArrayBuffer(b), Dc=Math.max(1,Math.round(a.D/c)), Sc=Math.max(1,Math.round(a.s/c)), N1=Math.max(1,n);
     const CEL=new Int32Array(N1); for(let cl=0;cl<nc;cl++) for(let q=FS[cl];q<FS[cl+1];q++) CEL[q]=cl;
     const DX=[1,-1,0,0], DY=[0,0,1,-1], OFF=[1,-1,nx,-nx];
@@ -459,6 +465,22 @@ function KERNELS(){
       const eLo=!tLo&&dead(R,0), eUp=!tUp&&dead(R,1); if(!eLo&&!eUp) continue;   // kadiaľ išiel skener, tam je chodba, nie vrecko
       const low=eLo&&(!eUp||vLo<=vUp); nPk++;
       for(let t=R.st;t<R.en;t++){ const u=ord[t]+(low?0:1); if(!SEC[u]){ SEC[u]=low?2:1; FX[u]=2; nSec++; } } }
+    // 2b. výklenky: nízke úseky v oveľa vyššej stene (zárez pozdĺž vrstvovej plochy, medzera medzi bodmi steny, plytké podtečenie bez police).
+    // Do hĺbky D a bez trajektórie nepatria do blany – neurčujú okraj pôdorysu ani kotvy; výšku blany preberú od ústia (PAR = úsek pri ústí).
+    const PAR=new Int32Array(mk(4*N1)); for(let q=0;q<n;q++) PAR[q]=q; let nNi=0;
+    { const lab=new Uint8Array(N1), dq=new Int32Array(N1); 
+      const nbs=(q,fn)=>{ for(let d=0;d<4;d++){ const b=nbc(q,d); if(b<0) continue; for(let j=FS[b];j<FS[b+1];j++) if(ovl(q,j)>0) fn(j); } };
+      for(let q0=0;q0<n;q0++){ if(!NF[q0]||SEC[q0]||lab[q0]) continue; let h0=0, h1=0, tr=false; lab[q0]=1; bq[h1++]=q0;
+        while(h0<h1){ const u=bq[h0++]; if(TF[u]) tr=true; nbs(u,(j)=>{ if(NF[j]&&!SEC[j]&&!lab[j]){ lab[j]=1; bq[h1++]=j; } }); }
+        const cnt=h1; for(let t=0;t<cnt;t++) dq[bq[t]]=0;
+        // hĺbka od ústia: ústie = výklenok so susedom mimo výklenku
+        // každý sused mimo výklenku musí byť aspoň 6× vyšší než najvyššie miesto výklenku – inak je to zužujúci sa okraj alebo pokračovanie bežného priestoru
+        const comp=bq.slice(0,cnt); let b0=0, b1=0, mx=0, low=false, hm=0; for(const u of comp) if(ZC[u]-ZF[u]>hm) hm=ZC[u]-ZF[u];
+        for(const u of comp){ let pj=-1, ph=1e30; nbs(u,(j)=>{ if(!NF[j]&&!SEC[j]){ const hj=ZC[j]-ZF[j]; if(hj<6*hm) low=true; if(hj<ph){ ph=hj; pj=j; } } }); if(pj>=0){ dq[u]=1; PAR[u]=pj; bq[b1++]=u; } }   // ústie: najnižší zo susedov (najbližší priestor)
+        if(!b1||low){ for(const u of comp) PAR[u]=u; continue; }
+        while(b0<b1){ const u=bq[b0++]; if(dq[u]>mx) mx=dq[u]; nbs(u,(j)=>{ if(NF[j]&&!SEC[j]&&!dq[j]){ dq[j]=dq[u]+1; PAR[j]=PAR[u]; bq[b1++]=j; } }); }
+        if(tr||mx>Dc||b1<cnt){ for(const u of comp) PAR[u]=u; continue; }
+        for(const u of comp){ SEC[u]=3; nNi++; } } }
     // 3. susedia v rámci úrovní (najväčší prekryv) a ostrovy (stĺpy, malé diery), ktoré sa neberú ako okraj
     for(let q=0;q<n;q++){ if(SEC[q]) continue; for(let d=0;d<4;d++){ const b=nbc(q,d); if(b<0) continue; let best=-1, bo=0;
       for(let j=FS[b];j<FS[b+1];j++){ if(SEC[j]) continue; const o=ovl(q,j); if(o>bo){ bo=o; best=j; } } NB[4*q+d]=best; } }
@@ -503,7 +525,8 @@ function KERNELS(){
       const e=Math.min(0.05,0.3*(hi-lo)); LO[q]=lo+e; HI[q]=hi-e;
       if(FX[q]) continue; nFree++; let v=stp[q]!==0?mid(q):MV[q]; if(v<LO[q]) v=LO[q]; else if(v>HI[q]) v=HI[q]; MV[q]=v; }
     const DS=new Int32Array(mk(4*N1)); DS.set(dist); let mxd=1; for(let q=0;q<n;q++) if(dist[q]>mxd) mxd=dist[q];
-    return {r:{SEC:SEC.buffer,NB:NB.buffer,NS:NS.buffer,FX:FX.buffer,MV:MV.buffer,LO:LO.buffer,HI:HI.buffer,DS:DS.buffer,nSec,nPk,nSlab:rs.length,nSrc,nAn,nFree,mxd,mxa,nUn}}; },
+    for(let q=0;q<n;q++) if(SEC[q]===3){ SEC[q]=0; FX[q]=3; MV[q]=mid(q); }
+    return {r:{PAR:PAR.buffer,nNi,SEC:SEC.buffer,NB:NB.buffer,NS:NS.buffer,FX:FX.buffer,MV:MV.buffer,LO:LO.buffer,HI:HI.buffer,DS:DS.buffer,nSec,nPk,nSlab:rs.length,nSrc,nAn,nFree,mxd,mxa,nUn}}; },
   sor(S,a){ const LO=new Float64Array(a.LO), HI=new Float64Array(a.HI), NB=new Int32Array(a.NB), FX=new Uint8Array(a.FX), MV=new Float64Array(a.MV), w=a.w; let mx=0;
     for(let it=0;it<a.it;it++){ mx=0;
       for(let q=a.q0;q<a.q1;q++){ if(FX[q]) continue; let s=0, k=0;
@@ -512,15 +535,16 @@ function KERNELS(){
         const dl=v>m0?v-m0:m0-v; if(dl>mx) mx=dl; MV[q]=v; } }
     return {r:mx}; },
   /* body: najbližší úsek vzduchu; nad blanou strop (1), pod ňou podlaha (2), vo vrecku podľa vrecka */
-  cfb(S,a){ const X=S.X, M=S.M, K=S.K, FS=new Uint32Array(a.FS), ZF=new Float32Array(a.ZF), ZC=new Float32Array(a.ZC), FB=new Float32Array(a.FB), CT=new Float32Array(a.CT), MV=new Float64Array(a.MV), SEC=new Uint8Array(a.SEC);
+  cfb(S,a){ const X=S.X, M=S.M, K=S.K, FS=new Uint32Array(a.FS), ZF=new Float32Array(a.ZF), ZC=new Float32Array(a.ZC), FB=new Float32Array(a.FB), CT=new Float32Array(a.CT), MV=new Float64Array(a.MV), SEC=new Uint8Array(a.SEC), PAR=new Int32Array(a.PAR);
     const g=a.g, nx=g.nx, ny=g.ny, ic=g.ic, c=g.c, Rm=a.R, Rd=a.Rd; let n0=0;
     // bod vo výške úseku q: podľa blany; kde je blana prilepená na dno (strop) úseku, patrí tenká vrstva bodov tesne nad dnom (pod stropom) ešte k nemu
-    const side=(q,z)=>{ const sc=SEC[q]; if(sc) return sc; const m=MV[q], lo=ZF[q], hi=ZC[q], bw=Math.min(0.15,0.25*(hi-lo));
+    const side=(q,z)=>{ const sc=SEC[q]; if(sc) return sc; const pq=PAR[q]; if(pq!==q) return z>=MV[pq]?1:2;   // výklenok: podľa blany pri ústí
+      const m=MV[q], lo=ZF[q], hi=ZC[q], bw=Math.min(0.15,0.25*(hi-lo));
       if(z>=m) return (m-lo<=0.051&&z-lo<bw)?2:1; return (hi-m<=0.051&&hi-z<bw)?1:2; };
     for(let i=a.a,o=a.a*3;i<a.b;i++,o+=3){ if(M[i]>=2) continue; const z=X[o+2], ix=Math.floor((X[o]-g.x0)*ic), iy=Math.floor((X[o+1]-g.y0)*ic); let cl=-1;
-      // 1. vlastná bunka: bod vo vzduchu úseku, alebo v zhluku bodov, ktorý úsek zdola či zhora ohraničuje (dno je pod blanou, strop nad ňou)
+      // 1. vlastná bunka: bod vo vzduchu úseku, alebo v zhluku bodov, ktorý úsek zdola či zhora ohraničuje – rozhodne blana tohto úseku (nie suseda)
       if(ix>=0&&iy>=0&&ix<nx&&iy<ny){ const c0=iy*nx+ix;
-        for(let q=FS[c0],qe=FS[c0+1];q<qe;q++){ if(z>ZF[q]&&z<ZC[q]){ cl=side(q,z); break; } if(z<=ZF[q]&&z>=FB[q]){ cl=SEC[q]||2; break; } if(z>=ZC[q]&&z<=CT[q]){ cl=SEC[q]||1; break; } } }
+        for(let q=FS[c0],qe=FS[c0+1];q<qe;q++){ if((z>ZF[q]&&z<ZC[q])||(z<=ZF[q]&&z>=FB[q])||(z>=ZC[q]&&z<=CT[q])){ cl=side(q,z); break; } } }
       // 2. inak najbližší úsek vzduchu v okolí
       if(cl<0){ let best=1e9, bn=-1;
         for(let k=0;k<=Rm&&(k-0.5)*c<best;k++){ const dh=k>0?(k-0.5)*c:0, d2=dh*dh;
@@ -664,7 +688,8 @@ function loopSrc(H){
 
 /* ============ stav ============ */
 let D={n:0}, busy=false, nextOp=3, undo=[];
-const ui={lit:0,edl:true,edlS:0.7,psW:true,psCm:2,mdl:false,mode:0,ps:1.5,budget:20e6,lasso:false,boxShow:true,boxClip:false,cv:7};
+const BGS=[[0.030,0.042,0.058,0.082,0.106,0.137],[0,0,0,0,0,0],[0.22,0.24,0.27,0.40,0.43,0.47],[0.70,0.73,0.77,0.90,0.92,0.94],[1,1,1,1,1,1]];   // pozadie: dolná a horná farba
+const ui={lit:0,edl:true,edlS:0.5,shS:0.8,smR:4,bri:1.3,bg:0,psW:true,psCm:2,mdl:false,mode:0,ps:1.5,budget:20e6,lasso:false,boxShow:true,boxClip:false,cv:7};
 function setBusy(t){ busy=!!t; $("busy").textContent=t||""; $("busy").style.display=t?"block":"none"; }
 const tick=()=>new Promise((r)=>setTimeout(r,0));
 
@@ -766,12 +791,14 @@ vec3 ramp(float t){ t=clamp(t,0.0,1.0); return clamp(vec3(1.5-abs(4.0*t-3.0),1.5
 void main(){
   vec3 vd=normalize(eye-p), nn=octn(ne); float fd=dot(nn,vd);
   bool hide=m>=2u||((cv>>int(k))&1)==0||(bon==1&&(any(lessThan(p,bmn))||any(greaterThan(p,bmx))))||((lit&2)!=0&&fd<-0.05);
-  // priehľad podľa modelu: 3 vzorky vzduchu 1,5 – 5 voxelov pred bodom (k oku) a za ním. Vzduch pred bodom: vidno. Vzduch len za bodom: stena videná z horniny, skryť.
-  // Vzduch ani pred, ani za (okraj pôdorysu, nízke a úzke miesta, kam hrubý model nesiaha): strop sa skryje pri pohľade zhora, podlaha pri pohľade zdola, ostatné ostáva.
+  // priehľad podľa modelu: 4 vzorky vzduchu 1,5 – 8 voxelov pred bodom (k oku) a za ním. Vzduch pred bodom: vidno. Vzduch len za bodom: stena videná z horniny, skryť.
+  // Vzduch ani pred, ani za (okraj pôdorysu, nízke a úzke miesta, kam model nesiaha): strop sa skryje pri pohľade zhora, podlaha zdola; inak rozhodne normála bodu, ak je.
   if(!hide&&(lit&4)!=0){ vec3 d=p-a0; if(texture(nearT,d*nis).r>0.5){ vec3 q=d*ais, st=vd*ais*ah;
-    if(max(texture(airT,q+st*1.5).r,max(texture(airT,q+st*3.0).r,texture(airT,q+st*5.0).r))<0.5){
-      if(max(texture(airT,q-st*1.5).r,max(texture(airT,q-st*3.0).r,texture(airT,q-st*5.0).r))>=0.5) hide=true;
-      else hide=(k==1u&&vd.z>0.15)||(k==2u&&vd.z<-0.15); } } }
+    if(max(max(texture(airT,q+st*1.5).r,texture(airT,q+st*3.0).r),max(texture(airT,q+st*5.0).r,texture(airT,q+st*8.0).r))<0.5){
+      if(max(max(texture(airT,q-st*1.5).r,texture(airT,q-st*3.0).r),max(texture(airT,q-st*5.0).r,texture(airT,q-st*8.0).r))>=0.5) hide=true;
+      else if(k==1u&&vd.z>0.05) hide=true;
+      else if(k==2u&&vd.z<-0.05) hide=true;
+      else hide=(lit&8)!=0&&fd<-0.3; } } }
   if(hide){ gl_Position=vec4(2.0,2.0,2.0,1.0); gl_PointSize=1.0; v=vec3(0.0); sz=1.0; return; }
   gl_Position=mvp*vec4(p,1.0); sz=clamp(sw/gl_Position.w,ps,pmax); gl_PointSize=sz;
   ${pick?"v=p;":"vec3 cc=k==1u?vec3(0.32,0.62,1.0):k==2u?vec3(0.95,0.63,0.22):vec3(0.62); vec3 col=mode==0?c.rgb:mode==1?ramp((p.z-zr.x)/max(zr.y-zr.x,1e-6)):mode==2?cc*(0.35+0.65*dot(c.rgb,vec3(0.3,0.59,0.11))):mix(mix(vec3(0.55,0.75,0.5),vec3(0.95,0.63,0.22),clamp(nn.z,0.0,1.0)),vec3(0.32,0.62,1.0),clamp(-nn.z,0.0,1.0)); if((lit&1)!=0) col*=0.3+0.7*abs(fd); if(m==1u) col=mix(col,vec3(1.0,0.82,0.1),0.75); v=col;"}
@@ -785,32 +812,54 @@ function prog(vs,fs){ const p=gl.createProgram();
   for(const [t,s] of [[gl.VERTEX_SHADER,vs],[gl.FRAGMENT_SHADER,fs]]){ const o=gl.createShader(t); gl.shaderSource(o,s); gl.compileShader(o);
     if(!gl.getShaderParameter(o,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); gl.attachShader(p,o); }
   gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
-  const u={}; for(const nm of ["mvp","ps","sw","pmax","mode","zr","bon","bmn","bmx","col","cv","eye","lit","airT","nearT","a0","ais","nis","ah","tc","td","px","nf","str","rad"]) u[nm]=gl.getUniformLocation(p,nm); return {p,u}; }
+  const u={}; for(const nm of ["mvp","ps","sw","pmax","mode","zr","bon","bmn","bmx","col","cv","eye","lit","airT","nearT","a0","ais","nis","ah","tc","td","tl","px","nf","str","rad","dir","R","tn","sh","kn","bri","smc","bg0","bg1"]) u[nm]=gl.getUniformLocation(p,nm); return {p,u}; }
 const PP=prog(VS(false),FSP), PK=prog(VS(true),FSP);
 for(const P of [PP,PK]){ gl.useProgram(P.p); gl.uniform1i(P.u.airT,2); gl.uniform1i(P.u.nearT,3); }
-// zloženie obrazu: pozadie a zvýraznenie tvaru podľa hĺbky (eye-dome lighting) – tmavne bod, ktorý je ďalej než jeho susedia v obraze
-const PE=prog(`#version 300 es
-out vec2 uv; void main(){ vec2 q=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2)); uv=q; gl_Position=vec4(q*2.0-1.0,0.0,1.0); }`,
-`#version 300 es
-precision highp float; uniform sampler2D tc; uniform highp sampler2D td; uniform vec2 px; uniform vec2 nf; uniform float str; uniform float rad; in vec2 uv; out vec4 o;
+/* Zloženie obrazu v štyroch krokoch nad hĺbkou scény:
+   1. dierky: bod obrazu, ktorý je ďalej než aspoň 6 z 8 susedov (alebo je to pozadie), dostane ich farbu aj hĺbku;
+   2. – 3. hĺbka sa vyhladí (vodorovne a zvislo) s váhou podľa rozdielu hĺbok, takže hrany ostanú ostré a šum bodov zmizne;
+   4. z vyhladenej hĺbky sa počíta zvýraznenie tvaru (eye-dome lighting) a plastické osvetlenie (normála plochy z hĺbky, svetlo zľava zhora); jas a pozadie. */
+const VSQ=`#version 300 es
+out vec2 uv; void main(){ vec2 q=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2)); uv=q; gl_Position=vec4(q*2.0-1.0,0.0,1.0); }`;
+const P0=prog(VSQ,`#version 300 es
+precision highp float; uniform sampler2D tc; uniform highp sampler2D td; uniform vec2 px; uniform vec2 nf; uniform float rad; in vec2 uv; layout(location=0) out vec4 oc; layout(location=1) out vec4 ol;
 float lz(float d){ return log2(2.0*nf.x*nf.y/(nf.y+nf.x-(d*2.0-1.0)*(nf.y-nf.x))); }
-void main(){ float d=texture(td,uv).r, l=d<1.0?lz(d):1e9, s=0.0, al=0.0; vec3 ac=vec3(0.0); int nn=0;
-  for(int i=0;i<8;i++){ float a=float(i)*0.7853982; vec2 q=uv+vec2(cos(a),sin(a))*px*rad; float dn=texture(td,q).r; if(dn>=1.0) continue; float ln=lz(dn), df=l-ln;
-    s+=clamp(df,0.0,0.06); if(df>0.02){ nn++; ac+=texture(tc,q).rgb; al+=ln; } }
-  // dierka: bod obrazu, ktorý je ďalej než aspoň 6 z 8 susedov (alebo je to pozadie), sa zaplní ich farbou
-  if(nn>=6){ o=vec4(ac/float(nn),1.0); return; }
-  if(d>=1.0){ o=vec4(mix(vec3(0.030,0.042,0.058),vec3(0.082,0.106,0.137),uv.y),1.0); return; }
-  o=vec4(texture(tc,uv).rgb*(str>0.0?exp(-s*37.5*str):1.0),1.0); }`);
-gl.useProgram(PE.p); gl.uniform1i(PE.u.tc,0); gl.uniform1i(PE.u.td,1);
+void main(){ float d=texture(td,uv).r, l=d<1.0?lz(d):1e9, al=0.0; vec3 ac=vec3(0.0); int nn=0;
+  for(int i=0;i<8;i++){ float a=float(i)*0.7853982; vec2 q=uv+vec2(cos(a),sin(a))*px*rad; float dn=texture(td,q).r; if(dn>=1.0) continue; float ln=lz(dn); if(l-ln>0.02){ nn++; ac+=texture(tc,q).rgb; al+=ln; } }
+  if(nn>=6){ oc=vec4(ac/float(nn),1.0); ol=vec4(al/float(nn)); return; }
+  if(d>=1.0){ oc=vec4(0.0); ol=vec4(-1.0); return; }
+  oc=vec4(texture(tc,uv).rgb,1.0); ol=vec4(l); }`);
+const PB=prog(VSQ,`#version 300 es
+precision highp float; uniform highp sampler2D tl; uniform vec2 dir; uniform int R; in vec2 uv; out vec4 ol;
+void main(){ float l=texture(tl,uv).r; if(l<0.0){ ol=vec4(l); return; } float s=l, w=1.0, so=0.0, wo=0.0, sg=float(R)*0.5+0.5;
+  for(int i=1;i<=R;i++){ float g=exp(-float(i*i)/(2.0*sg*sg)); for(int k=-1;k<=1;k+=2){ float ln=texture(tl,uv+dir*float(i*k)).r; if(ln<0.0) continue; float dl=(ln-l)/0.03, e=exp(-dl*dl), ww=g*e; s+=ln*ww; w+=ww; if(ln>l){ float wf=g*(1.0-e); so+=ln*wf; wo+=wf; } } }
+  ol=vec4((w-1.0)<0.25*wo?so/wo:s/w); }`);   // osamelý bod pred plochou (podobne hlboko je menej než pätina okolia) dostane hĺbku okolia
+const PE=prog(VSQ,`#version 300 es
+precision highp float; uniform sampler2D tc; uniform highp sampler2D tl; uniform vec2 px; uniform vec2 tn; uniform float str; uniform float rad; uniform float sh; uniform float kn; uniform float bri; uniform int smc; uniform vec3 bg0; uniform vec3 bg1; in vec2 uv; out vec4 o;
+vec3 P(vec2 q,float l){ float z=exp2(l); return vec3((q*2.0-1.0)*tn*z,-z); }
+void main(){ float l=texture(tl,uv).r; if(l<0.0){ o=vec4(mix(bg0,bg1,uv.y),1.0); return; }
+  float s=0.0; for(int i=0;i<8;i++){ float a=float(i)*0.7853982, ln=texture(tl,uv+vec2(cos(a),sin(a))*px*rad).r; if(ln>=0.0) s+=clamp(l-ln,0.0,0.06); }
+  vec3 c=texture(tc,uv).rgb;
+  if(smc>0){ float w=1.0; for(int j=-1;j<=1;j++) for(int i=-1;i<=1;i++){ if(i==0&&j==0) continue; vec2 q=uv+vec2(float(i),float(j))*px; float ln=texture(tl,q).r; if(ln<0.0) continue; float dl=(ln-l)/0.03, ww=exp(-dl*dl)*0.7; c+=texture(tc,q).rgb*ww; w+=ww; } c/=w; }
+  float f=str>0.0?exp(-s*37.5*str):1.0;
+  if(sh>0.0){ vec2 dx=vec2(px.x*kn,0.0), dy=vec2(0.0,px.y*kn); float lr=texture(tl,uv+dx).r, ll=texture(tl,uv-dx).r, lu=texture(tl,uv+dy).r, ld=texture(tl,uv-dy).r; vec3 p0=P(uv,l);
+    vec3 ex=(lr>=0.0&&(ll<0.0||abs(lr-l)<abs(l-ll)))?P(uv+dx,lr)-p0:(ll>=0.0?p0-P(uv-dx,ll):vec3(1.0,0.0,0.0));
+    vec3 ey=(lu>=0.0&&(ld<0.0||abs(lu-l)<abs(l-ld)))?P(uv+dy,lu)-p0:(ld>=0.0?p0-P(uv-dy,ld):vec3(0.0,1.0,0.0));
+    vec3 n=normalize(cross(ex,ey)); if(n.z<0.0) n=-n;
+    f*=mix(1.0,0.30+0.95*max(dot(n,normalize(vec3(-0.45,0.55,0.70))),0.0),sh); }
+  o=vec4(clamp(c*f*bri,0.0,1.0),1.0); }`);
+for(const [P,nm] of [[P0,["tc","td"]],[PB,["tl"]],[PE,["tc","tl"]]]){ gl.useProgram(P.p); nm.forEach((x,i)=>gl.uniform1i(P.u[x],i)); }
 const emptyVao=gl.createVertexArray(), PMAX_PX=Math.min(64,gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE)[1]);
-const F={w:0,h:0,fbo:null,tc:null,td:null};
+const F={w:0,h:0,fbo:null,tc:null,td:null,c1:null,l1:null,l2:null,f1:null,f2:null,f3:null};
 function sceneFbo(){ const w=cv.width, h=cv.height; if(F.w===w&&F.h===h) return;
-  if(F.fbo){ gl.deleteFramebuffer(F.fbo); gl.deleteTexture(F.tc); gl.deleteTexture(F.td); }
+  for(const k of ["fbo","f1","f2","f3"]) if(F[k]) gl.deleteFramebuffer(F[k]); for(const k of ["tc","td","c1","l1","l2"]) if(F[k]) gl.deleteTexture(F[k]);
   const tex=(ifmt,fmt,type)=>{ const t=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,t); gl.texImage2D(gl.TEXTURE_2D,0,ifmt,w,h,0,fmt,type,null);
     for(const [k,v] of [[gl.TEXTURE_MIN_FILTER,gl.NEAREST],[gl.TEXTURE_MAG_FILTER,gl.NEAREST],[gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE],[gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D,k,v); return t; };
+  const fb=(...at)=>{ const f=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,f); at.forEach((t,i)=>gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0+i,gl.TEXTURE_2D,t,0)); gl.drawBuffers(at.map((t,i)=>gl.COLOR_ATTACHMENT0+i)); return f; };
   F.tc=tex(gl.RGBA8,gl.RGBA,gl.UNSIGNED_BYTE); F.td=tex(gl.DEPTH_COMPONENT24,gl.DEPTH_COMPONENT,gl.UNSIGNED_INT);
-  F.fbo=gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER,F.fbo);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,F.tc,0); gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,F.td,0);
+  F.fbo=fb(F.tc); gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.DEPTH_ATTACHMENT,gl.TEXTURE_2D,F.td,0);
+  F.c1=tex(gl.RGBA8,gl.RGBA,gl.UNSIGNED_BYTE); F.l1=tex(gl.R32F,gl.RED,gl.FLOAT); F.l2=tex(gl.R32F,gl.RED,gl.FLOAT);
+  F.f1=fb(F.c1,F.l1); F.f2=fb(F.l2); F.f3=fb(F.l1);
   gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.bindTexture(gl.TEXTURE_2D,null); F.w=w; F.h=h; }
 const PV=prog(`#version 300 es
 layout(location=0) in vec3 p; layout(location=1) in vec4 c; uniform mat4 mvp; uniform float ps; out vec3 v;
@@ -890,7 +939,7 @@ function setUniforms(P,m,f){ const dpr=window.devicePixelRatio||1, fs=Math.min(2
   if(A){ gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_3D,A.t); gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_3D,A.n); gl.activeTexture(gl.TEXTURE0);
     gl.uniform3f(P.u.a0,A.a0[0],A.a0[1],A.a0[2]); gl.uniform3f(P.u.ais,A.ais[0],A.ais[1],A.ais[2]); gl.uniform3f(P.u.nis,A.nis[0],A.nis[1],A.nis[2]); gl.uniform1f(P.u.ah,A.ah); }
   gl.uniform2f(P.u.zr,D.bb[2],D.bb[5]); gl.uniform1i(P.u.bon,ui.boxClip?1:0); gl.uniform1i(P.u.cv,ui.cv);
-  const e=eyePos(); gl.uniform3f(P.u.eye,e[0],e[1],e[2]); gl.uniform1i(P.u.lit,(D.N?ui.lit&3:0)|(A?4:0));
+  const e=eyePos(); gl.uniform3f(P.u.eye,e[0],e[1],e[2]); gl.uniform1i(P.u.lit,(D.N?ui.lit&3:0)|(A?4:0)|(A&&D.N?8:0));
   const b=boxLocal(); gl.uniform3f(P.u.bmn,b[0],b[1],b[2]); gl.uniform3f(P.u.bmx,b[3],b[4],b[5]); }
 function drawPoints(m,f){ let drawn=0;
   for(const ch of D.chunks){ gl.bindVertexArray(ch.vao); let rs=0, rc=0;
@@ -903,10 +952,17 @@ function cullCells(m){ const P=planes(m); let V=0; for(const c of D.cells){ c.vi
 function render(mv){
   resize(); sceneFbo(); gl.bindFramebuffer(gl.FRAMEBUFFER,F.fbo); gl.viewport(0,0,cv.width,cv.height);
   gl.clearColor(0.043,0.059,0.078,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
-  const compose=()=>{ const dpr=window.devicePixelRatio||1, nf=camNF(); gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.viewport(0,0,cv.width,cv.height); gl.disable(gl.DEPTH_TEST);
-    gl.useProgram(PE.p); gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D,F.td); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D,F.tc);
-    gl.uniform2f(PE.u.px,1/cv.width,1/cv.height); gl.uniform2f(PE.u.nf,nf[0],nf[1]); gl.uniform1f(PE.u.str,ui.edl?ui.edlS:0); gl.uniform1f(PE.u.rad,1.4*dpr);
-    gl.bindVertexArray(emptyVao); gl.drawArrays(gl.TRIANGLES,0,3); gl.bindVertexArray(null); gl.bindTexture(gl.TEXTURE_2D,null); gl.enable(gl.DEPTH_TEST); };
+  const compose=()=>{ const dpr=window.devicePixelRatio||1, nf=camNF(), w=cv.width, h=cv.height, R=Math.round(ui.smR*dpr), bind=(u,t)=>{ gl.activeTexture(gl.TEXTURE0+u); gl.bindTexture(gl.TEXTURE_2D,t); };
+    const quad=()=>{ gl.bindVertexArray(emptyVao); gl.drawArrays(gl.TRIANGLES,0,3); gl.bindVertexArray(null); };
+    gl.disable(gl.DEPTH_TEST); gl.viewport(0,0,w,h);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,F.f1); gl.useProgram(P0.p); bind(1,F.td); bind(0,F.tc); gl.uniform2f(P0.u.px,1/w,1/h); gl.uniform2f(P0.u.nf,nf[0],nf[1]); gl.uniform1f(P0.u.rad,1.4*dpr); quad();
+    if(R>0){ gl.useProgram(PB.p); gl.uniform1i(PB.u.R,R);
+      gl.bindFramebuffer(gl.FRAMEBUFFER,F.f2); bind(0,F.l1); gl.uniform2f(PB.u.dir,1/w,0); quad();
+      gl.bindFramebuffer(gl.FRAMEBUFFER,F.f3); bind(0,F.l2); gl.uniform2f(PB.u.dir,0,1/h); quad(); }
+    gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.useProgram(PE.p); bind(1,F.l1); bind(0,F.c1); const ty=Math.tan(cam.fov/2), B=BGS[ui.bg]||BGS[0];
+    gl.uniform2f(PE.u.px,1/w,1/h); gl.uniform2f(PE.u.tn,ty*w/h,ty); gl.uniform1f(PE.u.str,ui.edl?ui.edlS:0); gl.uniform1f(PE.u.rad,Math.max(1.4*dpr,R*0.6)); gl.uniform1f(PE.u.sh,ui.shS); gl.uniform1f(PE.u.kn,Math.max(1,R*0.5));
+    gl.uniform1f(PE.u.bri,ui.bri); gl.uniform1i(PE.u.smc,R>0?1:0); gl.uniform3f(PE.u.bg0,B[0],B[1],B[2]); gl.uniform3f(PE.u.bg1,B[3],B[4],B[5]);
+    quad(); bind(1,null); bind(0,null); gl.enable(gl.DEPTH_TEST); };
   if(!D.n){ compose(); $("bar").textContent=""; drawOverlay(null); return; }
   const m=mvpNow(), V=cullCells(m), f=mv?Math.min(1,ui.budget/Math.max(1,V)):1;
   setUniforms(PP,m,f); lastDrawn=drawPoints(m,f);
@@ -1183,7 +1239,7 @@ async function buildLevels(air,c0){
   await run("seed",(i)=>({c0:R[i][0],c1:R[i][1],Z,CS:CS.buffer,KF,SF:SF.buffer,ZF:ZF0,ZC:ZC0,ACS:air.CS.buffer,ARZ:air.RZ.buffer,g,G,r:air.r}));
   setBusy("Úrovne: rast k stenám…"); await tick();
   const L=await exec(0,"grow",{Z,CS:CS.buffer,KF,SF:SF.buffer,ZF:ZF0,ZC:ZC0,g,g0,dl,tk:0.6*g0,wk:0.25*med/(2*c),tr:(D.traj&&air.trf>=0.7)?D.traj.P:null,shared:SHARED});
-  return {g,c,g0,dl,med,lone,n:L.n,seeds:L.seeds,grown:L.grown,ext:L.ext,slv:L.slv,nnp:L.nnp,nrock:L.nrock,nwall:L.nwall,FS:new Uint32Array(L.FS),ZF:new Float32Array(L.ZF),ZC:new Float32Array(L.ZC),FB:new Float32Array(L.FB),CT:new Float32Array(L.CT),WB:new Uint8Array(L.WB),TF:new Uint8Array(L.TF),nts:L.nts,tin:L.tin,tall:L.tall,Z:new Float32Array(Z),CS};
+  return {g,c,g0,dl,med,lone,n:L.n,seeds:L.seeds,grown:L.grown,ext:L.ext,slv:L.slv,nnp:L.nnp,nrock:L.nrock,nwall:L.nwall,FS:new Uint32Array(L.FS),ZF:new Float32Array(L.ZF),ZC:new Float32Array(L.ZC),FB:new Float32Array(L.FB),CT:new Float32Array(L.CT),WB:new Uint8Array(L.WB),TF:new Uint8Array(L.TF),NF:new Uint8Array(L.NF),nts:L.nts,tin:L.tin,tall:L.tall,Z:new Float32Array(Z),CS};
 }
 async function classifyBlana(cell){
   const t0=performance.now(), air=await buildAir(cell), t1=performance.now();
@@ -1191,7 +1247,7 @@ async function classifyBlana(cell){
   if(!n) throw new Error("jemný model nenašiel vzduch");
   setBusy("Blana: úrovne a kotvy…"); await tick();
   const B={FS:L.FS.buffer,ZF:L.ZF.buffer,ZC:L.ZC.buffer};
-  const H=await exec(0,"sheet",{...B,WB:L.WB.buffer,TF:L.TF.buffer,g:L.g,D:Math.max(0,+$("cfD").value||0),s:Math.max(L.c,+$("cfS").value||0.3),tau:self.TAU||0.15,shared:SHARED});
+  const H=await exec(0,"sheet",{...B,WB:L.WB.buffer,TF:L.TF.buffer,NF:L.NF.buffer,g:L.g,D:Math.max(0,+$("cfD").value||0),s:Math.max(L.c,+$("cfS").value||0.3),tau:self.TAU||0.15,shared:SHARED});
   setBusy("Blana: napínam…"); await tick();
   // relaxácia s nadrelaxovaním podľa najväčšej vzdialenosti od kotvy (v bunkách); končí, až keď odhad zvyškovej chyby klesne pod 2 mm
   const Lw=Math.max(H.mxd,H.mxa,4), w=Math.min(1.9995,2/(1+Math.sin(Math.PI/(2*Lw+2)))), thr=0.002*(2-w), smin=2*Lw, smax=Math.min(400000,40*Lw+2000), it=50, par=n>400000;
@@ -1199,11 +1255,11 @@ async function classifyBlana(cell){
   while((mx>thr||sweeps<smin)&&sweeps<smax){ mx=par?Math.max(...await run("sor",(i)=>({...qr(i),...sa}))):await exec(0,"sor",{q0:0,q1:n,...sa}); sweeps+=it;
     if(performance.now()-tl>300){ tl=performance.now(); setBusy(`Blana: napínam… (${fN(sweeps)} krokov, zmena ${f1(mx*1000,3)} mm)`); await tick(); } }
   const t3=performance.now(); setBusy("Blana: triedim body…"); await tick();
-  await run("cfb",(i)=>({...rg(i),...B,FB:L.FB.buffer,CT:L.CT.buffer,MV:H.MV,SEC:H.SEC,g:L.g,R:Math.ceil(0.5/L.c),Rd:0.6}));
-  L.Z=null; L.CS=null; D.air=air; D.lvl={...L,SEC:new Uint8Array(H.SEC),FX:new Uint8Array(H.FX),MV:new Float64Array(H.MV),NB:new Int32Array(H.NB),DS:new Int32Array(H.DS),st:H};
+  await run("cfb",(i)=>({...rg(i),...B,FB:L.FB.buffer,CT:L.CT.buffer,MV:H.MV,SEC:H.SEC,PAR:H.PAR,g:L.g,R:Math.ceil(0.5/L.c),Rd:0.6}));
+  L.Z=null; L.CS=null; D.air=air; D.lvl={...L,SEC:new Uint8Array(H.SEC),FX:new Uint8Array(H.FX),MV:new Float64Array(H.MV),NB:new Int32Array(H.NB),PAR:new Int32Array(H.PAR),DS:new Int32Array(H.DS),st:H};
   if($("nCullM").checked) buildAirTex(air); else freeAirTex();
   buildBlanaVis(D.lvl);
-  return air.txt+`\nblana: bunka ${f1(L.c,2)} m · ${fN(n)} úsekov vzduchu, z toho ${fN(L.grown)} dorastených · plytkých výklenkov zrušených ${fN(L.nnp)} · vreciek ${fN(H.nPk)} · kotiev ${fN(H.nAn)} · medzera od ${f1(L.g0*100,0)} cm`+
+  return air.txt+`\nblana: bunka ${f1(L.c,2)} m · ${fN(n)} úsekov vzduchu, z toho ${fN(L.grown)} dorastených · plytkých výklenkov zrušených ${fN(L.nnp)} · výklenkov bez vlastnej blany ${fN(H.nNi)} · vreciek ${fN(H.nPk)} · kotiev ${fN(H.nAn)} · medzera od ${f1(L.g0*100,0)} cm`+
     (D.traj&&air.trf>=0.7?`\ntrajektória: ${fN(L.tall)} polôh, z nich ${fN(L.tin)} už vo vzduchu modelu, ${fN(L.nts)} nových zárodkov`:"")+"\n"+
     `čas ${f1((performance.now()-t0)/1000,2)} s (model ${f1((t1-t0)/1000,2)} · úrovne ${f1((t2-t1)/1000,2)} · blana ${f1((t3-t2)/1000,2)} s, ${fN(sweeps)} krokov, najďalej od kotvy ${fN(Lw)} buniek)`;
 }
@@ -1211,7 +1267,7 @@ function buildBlanaVis(L){
   freeModel(); const g=L.g, nx=g.nx, c=g.c, nc=nx*g.ny; let m=0; for(let q=0;q<L.n;q++) if(!L.SEC[q]) m++;
   const P=new Float32Array(m*3), C=new Uint8Array(m*4); let k=0;
   for(let cl=0;cl<nc;cl++){ const x=cl%nx, y=(cl-x)/nx; for(let q=L.FS[cl];q<L.FS[cl+1];q++){ if(L.SEC[q]) continue;
-    P[k*3]=g.x0+(x+0.5)*c; P[k*3+1]=g.y0+(y+0.5)*c; P[k*3+2]=L.MV[q]; C.set(L.FX[q]===1?[150,70,230,255]:[215,140,255,255],k*4); k++; } }
+    P[k*3]=g.x0+(x+0.5)*c; P[k*3+1]=g.y0+(y+0.5)*c; P[k*3+2]=L.MV[L.PAR[q]]; C.set(L.FX[q]===1?[150,70,230,255]:L.FX[q]===3?[120,220,160,255]:[215,140,255,255],k*4); k++; } }
   const vao=gl.createVertexArray(); gl.bindVertexArray(vao);
   const bp=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,bp); gl.bufferData(gl.ARRAY_BUFFER,P,gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
   const bc=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,bc); gl.bufferData(gl.ARRAY_BUFFER,C,gl.STATIC_DRAW); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,4,gl.UNSIGNED_BYTE,true,0,0);
@@ -1290,7 +1346,7 @@ $("cfAlg").addEventListener("change",(e)=>{ const v=e.target.value; for(const [c
 $("mdlShow").addEventListener("change",(e)=>{ ui.mdl=e.target.checked; req(); });
 
 /* ============ trajektória skenera ============ */
-function freeTraj(){ if(D.traj){ gl.deleteBuffer(D.traj.buf); gl.deleteVertexArray(D.traj.vao); D.traj=null; } $("bTrAl").disabled=true; $("bNorT").disabled=true; }
+function freeTraj(){ if(D.traj){ gl.deleteBuffer(D.traj.buf); gl.deleteVertexArray(D.traj.vao); D.traj=null; } $("bTrAl").disabled=true; $("bNorT").disabled=true; for(const id of ["trDx","trDy","trDz"]) $(id).disabled=true; }
 let pendingTraj=null;
 async function orientNormals(flip){
   if(!D.N||!D.traj) return; setBusy("Normály: porovnávam s trajektóriou…"); await tick();
@@ -1305,6 +1361,18 @@ async function orientNormals(flip){
   if(flip){ setBusy("Normály: otáčam k trajektórii…"); await tick(); await run("nor",(i)=>({...rg(i),T:TA,HS,HI,g,flip:1})); uploadNormals(); }
   D.nTxt=(flip?`normály: otočené k trajektórii (predtým k nej smerovalo ${f1(fr*100,1)} %)`:`normály: k trajektórii smeruje ${f1(fr*100,1)} %`)+(st[2]?` · ${fN(st[2])} bodov ďalej než 20 m od nej neposúdených`:"");
 }
+/* Posun trajektórie: P = pôvodné polohy P0 + sh. Nastaví sa ručne (tri polia) alebo zarovnaním; po zmene sa prepočíta podiel polôh vo vzduchu modelu. */
+function trajAirFrac(){ const a=D.air, T=D.traj; if(!a||!T) return null; const g=a.g, CS=a.CS, RZ=a.RZ, P=T.P; let k=0, n=0;
+  for(let i=0;i<P.length;i+=3){ n++; const ix=Math.floor((P[i]-g.x0)*g.ih), iy=Math.floor((P[i+1]-g.y0)*g.ih), iz=Math.floor((P[i+2]-g.z0)*g.ih); if(ix<0||iy<0||iz<0||ix>=g.nx||iy>=g.ny||iz>=g.nz) continue;
+    const c=iy*g.nx+ix; for(let q=CS[c];q<CS[c+1];q++) if(iz>=RZ[2*q]&&iz<=RZ[2*q+1]){ k++; break; } }
+  return n?k/n:0; }
+function setTrajShift(sh,note){ const T=D.traj; if(!T) return; const P=T.P, P0=T.P0; T.sh=sh.slice();
+  for(let i=0;i<P.length;i+=3){ P[i]=P0[i]+sh[0]; P[i+1]=P0[i+1]+sh[1]; P[i+2]=P0[i+2]+sh[2]; }
+  gl.bindBuffer(gl.ARRAY_BUFFER,T.buf); gl.bufferData(gl.ARRAY_BUFFER,P,gl.STATIC_DRAW); gl.bindBuffer(gl.ARRAY_BUFFER,null);
+  ["trDx","trDy","trDz"].forEach((id,d)=>{ if(document.activeElement!==$(id)) $(id).value=+sh[d].toFixed(2); });
+  const fr=trajAirFrac(); if(fr!==null) D.air.trf=fr;
+  T.alTxt=(Math.hypot(...sh)>0.001?`posunutá o ${sh.map((v)=>f1(v,2)).join(" · ")} m (${f1(Math.hypot(...sh),2)} m)`:"bez posunu")+(fr!==null?` · vo vzduchu modelu ${f1(fr*100,0)} %`:"")+(note||"");
+  updInfo(); req(); }
 /* Posun trajektórie na mračno: hľadá sa posun (bez otočenia), pri ktorom leží najviac polôh skenera vo vzduchu hrubého modelu.
    Tri úrovne: krok 0,5 m do ±10 m, potom 0,1 m a 0,02 m okolo najlepšieho. */
 async function alignTraj(){
@@ -1327,12 +1395,9 @@ async function alignTraj(){
           if(sc>cs||(sc===cs&&Math.hypot(...v)<Math.hypot(...c)-1e-9)){ cs=sc; c=v; } } }
       if(cs>bs||(cs===bs&&Math.hypot(...c)<Math.hypot(...best)-1e-9)){ bs=cs; best=c; }
       if(performance.now()-tl>300){ tl=performance.now(); setBusy(`Trajektória: dolaďujem posun (${ci+1}/${Math.min(30,cand.length)})…`); await tick(); } }
-    const f0=base/m, f1_=bs/m, sh=Math.hypot(...best), T=D.traj;
-    if(bs>base&&sh>0.005){ for(let i=0;i<P.length;i+=3){ P[i]+=best[0]; P[i+1]+=best[1]; P[i+2]+=best[2]; }
-      gl.bindBuffer(gl.ARRAY_BUFFER,T.buf); gl.bufferData(gl.ARRAY_BUFFER,P,gl.STATIC_DRAW); gl.bindBuffer(gl.ARRAY_BUFFER,null);
-      T.sh=(T.sh||[0,0,0]).map((v,d)=>v+best[d]); a.trf=f1_;
-      T.alTxt=`posunutá o ${T.sh.map((v)=>f1(v,2)).join(" · ")} m (${f1(Math.hypot(...T.sh),2)} m) · vo vzduchu modelu ${f1(f0*100,0)} % → ${f1(f1_*100,0)} %`; }
-    else T.alTxt=`posun nenájdený · vo vzduchu modelu ${f1(f0*100,0)} %`;
+    const f0=base/m, T=D.traj;
+    if(bs>base&&Math.hypot(...best)>0.005) setTrajShift((T.sh||[0,0,0]).map((v,d)=>v+best[d]),` (pred zarovnaním ${f1(f0*100,0)} %)`);
+    else setTrajShift(T.sh||[0,0,0]," · lepší posun sa nenašiel");
     if(D.N) await orientNormals(false);
     updInfo(); flash("trajektória: "+T.alTxt); req();
   }catch(err){ console.error(err); alert("Trajektória: "+err.message); }
@@ -1364,9 +1429,10 @@ async function openTraj(file){
     if(P.length<6) throw new Error("v súbore nie sú polohy x y z");
     freeTraj(); const A=new Float32Array(P), vao=gl.createVertexArray(), buf=gl.createBuffer();
     gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER,buf); gl.bufferData(gl.ARRAY_BUFFER,A,gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0); gl.bindVertexArray(null);
-    D.traj={P:A,n:A.length/3,raw,len,name:file.name,vao,buf,inside};
+    D.traj={P:A,P0:new Float32Array(A),sh:[0,0,0],n:A.length/3,raw,len,name:file.name,vao,buf,inside};
     if(inside<0.5*raw) alert(`Len ${fN(inside)} z ${fN(raw)} polôh trajektórie leží v rozsahu mračna – súradnice asi nesedia.`);
     await orientNormals(false); $("bTrAl").disabled=false; $("bNorT").disabled=!D.N;
+    for(const id of ["trDx","trDy","trDz"]){ $(id).disabled=false; $(id).value=0; }
     updInfo(); flash(`trajektória načítaná: ${fN(raw)} polôh, ${f1(len,1)} m`);
   }catch(err){ console.error(err); alert("Trajektória: "+err.message); }
   finally{ setBusy(""); }
@@ -1374,6 +1440,7 @@ async function openTraj(file){
 $("fTraj").addEventListener("change",(e)=>{ openTraj(e.target.files[0]); e.target.value=""; });
 $("trShow").addEventListener("change",()=>req());
 $("bTrAl").addEventListener("click",alignTraj);
+for(const id of ["trDx","trDy","trDz"]) $(id).addEventListener("input",()=>{ if(D.traj) setTrajShift(["trDx","trDy","trDz"].map((k)=>+$(k).value||0)); });
 $("bNorT").addEventListener("click",async()=>{ if(!D.traj||!D.N||busy) return; try{ await orientNormals(true); updInfo(); req(); }catch(err){ console.error(err); alert("Chyba: "+err.message); } finally{ setBusy(""); } });
 
 /* ============ export PLY ============ */
@@ -1421,14 +1488,20 @@ async function airForView(){
   if(D.airTex&&D.airTex.of===D.air){ setLit(); return; }
   if(busy){ $("nCullM").checked=false; return; }
   setBusy("Priehľad: staviam model jaskyne…");
-  try{ await tick(); if(!D.air){ D.air=await buildAir(Math.max(0.02,+$("cfCell").value||0.2)); }
-    setBusy("Priehľad: textúra vzduchu…"); await tick(); buildAirTex(D.air); }
+  try{ await tick(); const cell=Math.max(0.02,+$("cfCell").value||0.2);
+    // s jemným modelom a triedami je priehľad presnejší (okraje pôdorysu, úzke miesta): ak mračno ešte nie je rozdelené, rozdelí sa blanou
+    if(!D.lvl&&!(D.cls&&(D.cls[1]||D.cls[2]))){ setBusy("Priehľad: delím strop a podlahu…"); await tick();
+      D.cfText=await classifyBlana(cell); sumCounts(await run("maskOp",(i)=>({...rg(i),kind:6}))); uploadClass(); updInfo(); }
+    else if(!D.air) D.air=await buildAir(cell);
+    if(!D.airTex||D.airTex.of!==D.air){ setBusy("Priehľad: textúra vzduchu…"); await tick(); buildAirTex(D.air); } }
   catch(err){ console.error(err); $("nCullM").checked=false; alert("Chyba: "+err.message); }
   finally{ setBusy(""); setLit(); }
 }
 $("nCullM").addEventListener("change",airForView);
 $("psW").addEventListener("change",(e)=>{ ui.psW=e.target.checked; req(); }); $("psCm").addEventListener("input",(e)=>{ ui.psCm=Math.max(0.1,+e.target.value||2); req(); });
 $("edl").addEventListener("change",(e)=>{ ui.edl=e.target.checked; req(); }); $("edlS").addEventListener("input",(e)=>{ ui.edlS=+e.target.value; req(); });
+for(const [id,k] of [["shS","shS"],["smR","smR"],["bri","bri"]]) $(id).addEventListener("input",(e)=>{ ui[k]=+e.target.value; req(); });
+$("bgSel").addEventListener("change",(e)=>{ ui.bg=+e.target.value; req(); });
 $("ps").addEventListener("input",(e)=>{ ui.ps=+e.target.value; req(); });
 $("budget").addEventListener("change",(e)=>{ ui.budget=+e.target.value*1e6; req(); });
 const vw=$("view");

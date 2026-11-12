@@ -1,5 +1,5 @@
 // Skúšobná jaskyňa s ťažkými profilmi. Farba: R = pravda (255 strop, 0 podlaha, 128 nehodnotí sa), G = skupina*16.
-// node skusobna_jaskyna.mjs out.ply [hustota/m2=1500] [šum m=0.01] [počet dier=0] [polomer diery=0.5] [trajektoria.txt] [n | f]
+// node skusobna_jaskyna.mjs out.ply [hustota/m2=1500] [šum m=0.01] [počet dier=0] [polomer diery=0.5] [trajektoria.txt] [n | f]   (GAUSS=1: šum s normálnym rozdelením)
 import fs from "fs";
 const OUT=process.argv[2], DENS=+(process.argv[3]||1500), NOISE=+(process.argv[4]||0.01), NH=+(process.argv[5]||0), HR=+(process.argv[6]||0.5), TRAJ=process.argv[7]||"", NRM=process.argv[8]||"";   // NRM: n = normály do vzduchu, f = pre x>50 otočené
 let sd=987654321; const R=()=>{ sd^=sd<<13; sd^=sd>>>17; sd^=sd<<5; return (sd>>>0)/4294967296; };
@@ -55,6 +55,12 @@ A.push({ins:inFis,area:(FX1-FX0)/Math.cos(30*Math.PI/180)*(2*FW+2*FH/FSN),smp:()
   else { w-=v; u=w*FSN; y=FW+u/FT; t=(v===0&&u>FH-TOL)?X_:F; }                             // podložná stena
   return [x,y,fz0(x)+u,t,17]; }});
 cylX(105,115.5,0.7,18,()=>X_);                                                              // spojka zo siene (nehodnotí sa)
+// 19 vysoká chodba (elipsa 1,5 × 3 m) so zárezom v takmer zvislej stene pod najširším miestom: zárez 6 m dlhý, 0,3 m hlboký, 12 cm vysoký
+const TX0=160, TX1=176, TY=20, TA=1.5, TB=3, GZ0=-1.26, GZ1=-1.14, GY0=TY+1.30, GY1=TY+1.375+0.30, GX0=164, GX1=170;
+A.push({ins:(x,y,z)=>x>TX0&&x<TX1&&((y-TY)/TA)**2+(z/TB)**2<1,area:(TX1-TX0)*14.53,smp:()=>{ let t; do{ t=R()*2*Math.PI; }while(R()>Math.hypot(TA*Math.sin(t),TB*Math.cos(t))/TB);
+  const z=TB*Math.sin(t); return [TX0+R()*(TX1-TX0),TY+TA*Math.cos(t),z,z>TOL?C:z<-TOL?F:X_,19]; }});
+A.push({ins:(x,y,z)=>x>GX0&&x<GX1&&y>GY0&&y<GY1&&z>GZ0&&z<GZ1,area:(GX1-GX0)*(2*(GY1-GY0)+(GZ1-GZ0)),smp:()=>{ const x=GX0+R()*(GX1-GX0), w=R()*(2*(GY1-GY0)+(GZ1-GZ0));
+  if(w<GY1-GY0) return [x,GY0+w,GZ0,X_,19]; if(w<2*(GY1-GY0)) return [x,GY0+w-(GY1-GY0),GZ1,X_,19]; return [x,GY1,GZ0+R()*(GZ1-GZ0),X_,19]; }});
 // ---- prekážky (hornina vo vzduchu): ins, area, smp
 const B=[];
 const cone=(cx,cy,zb,zt,rb,g,tr)=>B.push({ins:(x,y,z)=>{ const t=(z-zb)/(zt-zb); return t>0&&t<1&&Math.hypot(x-cx,y-cy)<rb*(1-t); },area:Math.PI*rb*Math.hypot(rb,zt-zb),
@@ -72,16 +78,18 @@ for(const s of A){ const n=Math.round(s.area*DENS); for(let i=0;i<n;i++){ const 
 for(const s of B){ const n=Math.round(s.area*DENS); for(let i=0;i<n;i++){ const p=s.smp(); if(!inAir(p[0],p[1],p[2])||inRock(p[0],p[1],p[2],s)) continue; P.push(p); } }
 // čelá na stykoch sekcií (zvislé steny, nehodnotia sa)
 for(const xj of [12,26,40,54,68]){ const n=Math.round(14*10*DENS); for(let i=0;i<n;i++){ const y=-7+R()*14, z=-5+R()*10; if(inAir(xj-0.01,y,z)!==inAir(xj+0.01,y,z)) P.push([xj,y,z,X_,0]); } }
+for(const xj of [TX0,TX1,GX0,GX1]){ const n=Math.round(5*7*DENS); for(let i=0;i<n;i++){ const y=TY-2+R()*5, z=-3.5+R()*7; if(inAir(xj-0.01,y,z)!==inAir(xj+0.01,y,z)) P.push([xj,y,z,X_,0]); } }
 for(let xj=FX0;xj<=FX1;xj+=4){ const n=Math.round(7*8*DENS); for(let i=0;i<n;i++){ const y=-1+R()*7, z=fz0(xj)-1+R()*8; if(inAir(xj-0.01,y,z)!==inAir(xj+0.01,y,z)) P.push([xj,y,z,X_,0]); } }
 // diery v skenovaní
 const holes=Array.from({length:NH},()=>P[Math.floor(R()*P.length)].slice(0,3).concat(HR)); if(TRAJ) holes.push([6,-1.75,-1.2,0.6]);
 const Q=holes.length?P.filter((p)=>!holes.some((h)=>(p[0]-h[0])**2+(p[1]-h[1])**2+(p[2]-h[2])**2<h[3]*h[3])):P;
+const GAUSS=!!process.env.GAUSS;   // šum s normálnym rozdelením (sigma = šum) a 1 % bodov s 5-násobnou odchýlkou
 const DIR=[]; for(let i=-1;i<=1;i++) for(let j=-1;j<=1;j++) for(let k=-1;k<=1;k++){ if(!i&&!j&&!k) continue; const l=Math.hypot(i,j,k); DIR.push([i/l,j/l,k/l]); }
 const isAir=(x,y,z)=>inAir(x,y,z)&&!inRock(x,y,z);
 const nrm=(p)=>{ let nx=0, ny=0, nz=0; for(const d of DIR) if(isAir(p[0]+0.04*d[0],p[1]+0.04*d[1],p[2]+0.04*d[2])){ nx+=d[0]; ny+=d[1]; nz+=d[2]; } const l=Math.hypot(nx,ny,nz)||1; return [nx/l,ny/l,nz/l]; };
 const n=Q.length, st=NRM?27:15, head=["ply","format binary_little_endian 1.0",`element vertex ${n}`,"property float x","property float y","property float z"].concat(NRM?["property float nx","property float ny","property float nz"]:[],["property uchar red","property uchar green","property uchar blue","end_header",""]).join("\n");
 const b=Buffer.alloc(n*st); Q.forEach((p,i)=>{ let o=i*st; if(NRM){ const v=nrm(p), s=(NRM==="f"&&p[0]>50)?-1:1; for(let k=0;k<3;k++) b.writeFloatLE(s*v[k],o+12+k*4); }
-  for(let k=0;k<3;k++) b.writeFloatLE(p[k]+NOISE*(R()-0.5)*2,o+k*4); o+=st-3; b[o]=p[3]; b[o+1]=Math.min(15,p[4])*16; b[o+2]=Math.max(0,p[4]-15)*64; });
+  const ns=GAUSS?NOISE*(R()<0.01?5:1):NOISE; for(let k=0;k<3;k++) b.writeFloatLE(p[k]+(GAUSS?ns*Math.sqrt(-2*Math.log(1-R()))*Math.cos(6.2831853*R()):NOISE*(R()-0.5)*2),o+k*4); o+=st-3; b[o]=p[3]; b[o+1]=Math.min(15,p[4])*16; b[o+2]=Math.min(255,Math.max(0,p[4]-15)*64); });
 fs.writeFileSync(OUT,Buffer.concat([Buffer.from(head),b]));
 const cnt={}; for(const p of Q) cnt[p[4]]=(cnt[p[4]]||0)+1; console.log("bodov",n,JSON.stringify(cnt),"sklon5",SLOPE5.toFixed(3));
 

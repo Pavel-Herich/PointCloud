@@ -21,13 +21,17 @@ Body sa držia v pamäti ako float32 voči lokálnemu počiatku (prvý bod zaokr
 ## Zobrazenie
 
 - **veľkosť bodu v priestore** — bod má veľkosť v centimetroch: zblízka sa zväčší a zaplní medzery, z diaľky ostane na najmenšej veľkosti (posuvník „bod“). Po načítaní sa nastaví na 5-násobok typickej vzdialenosti k najbližšiemu susedovi (vypíše sa v paneli). Väčšie body sú okrúhle.
-- **zvýrazniť tvar** — eye-dome lighting: bod obrazu stmavne, ak je ďalej než jeho susedia. Tvar vynikne aj bez normál a pri jednofarebnom mračne. Dierky veľké 1 – 2 pixely sa zaplnia farbou okolia.
-- **úplný priehľad podľa modelu jaskyne** — rozhoduje vzduch modelu pred bodom (smerom k oku) a za ním, po troch vzorkách 1,5 – 5 voxelov:
+- obraz sa skladá z hĺbky scény v štyroch krokoch: dierky veľké 1 – 2 pixely sa zaplnia farbou okolia; hĺbka sa vyhladí s váhou podľa rozdielu hĺbok (hrany ostanú ostré, šum bodov a osamelé body pred plochou zmiznú); z vyhladenej hĺbky sa počíta tieňovanie
+- **zvýrazniť tvar** — eye-dome lighting: bod obrazu stmavne, ak je ďalej než jeho susedia
+- **plastickosť** — osvetlenie plochy zľava zhora; sklon plochy sa počíta z vyhladenej hĺbky, normály v súbore netreba
+- **vyhladenie** — polomer vyhladenia hĺbky v pixeloch (0 = vypnuté, obraz je potom bodkovaný)
+- **jas** a **pozadie** (tmavé, čierne, sivé, svetlé, biele)
+- **úplný priehľad podľa modelu jaskyne** — rozhoduje vzduch modelu pred bodom (smerom k oku) a za ním, po štyroch vzorkách 1,5 – 8 voxelov:
   - vzduch pred bodom: bod je vidno;
   - vzduch len za bodom: stena videná zo strany horniny, skryje sa celá, z každej vzdialenosti;
-  - vzduch ani pred, ani za (okraj pôdorysu, nízke a úzke miesta): strop sa skryje pri pohľade zhora, podlaha pri pohľade zdola, nezaradené body ostávajú. Pôdorys pri pohľade zhora tak ostáva úplný.
+  - vzduch ani pred, ani za (okraj pôdorysu, nízke a úzke miesta): strop sa skryje pri pohľade zhora, podlaha pri pohľade zdola; inak rozhodne normála bodu, ak ju mračno má. Pôdorys pri pohľade zhora tak ostáva úplný.
 
-  Šum ani záhyby povrchu nevadia, lebo sa nerozhoduje podľa normál jednotlivých bodov. Používa hrubý model vzduchu, po delení blanou doplnený jemným modelom (siaha až k stenám); ak model ešte nie je, postaví sa pri zaškrtnutí. Body ďalej než asi 1 m od vzduchu modelu (povrch, nezmodelované časti) ostávajú viditeľné.
+  Šum ani záhyby povrchu nevadia, lebo sa nerozhoduje podľa normál jednotlivých bodov. Používa hrubý model vzduchu doplnený jemným modelom z delenia blanou (siaha až k stenám). Ak mračno ešte nie je rozdelené, pri zaškrtnutí sa rozdelí blanou. Body ďalej než asi 1 m od vzduchu modelu (povrch, nezmodelované časti) ostávajú viditeľné.
 - pri pohybe sa kreslí len časť bodov (voľba „body pri pohybe“) a body sa primerane zväčšia
 
 ## Normály
@@ -44,7 +48,7 @@ Po načítaní trajektórie sa vypíše, koľko percent normál smeruje k najbli
 
 Tlačidlo „Trajektória…“ načíta dráhu skenera v súradniciach mračna: GeoSLAM `*_results_traj.txt` (`%time x y z q0 q1 q2 q3`), iný text so stĺpcami `x y z` alebo `čas x y z`, alebo PLY. Zobrazí sa ako zelená čiara. Dá sa zadať tlačidlom alebo pustením súboru do okna, aj počas čítania mračna alebo pred ním – načíta sa hneď po mračne. Pri delení stropu a podlahy slúži ako istý vzduch: kde poloha skenera nie je vo vzduchu modelu, vznikne nový zárodok (úzke plazivky, miesta za dierou v skenovaní), a vrstva, ktorou skener prešiel, sa nikdy neberie ako vrecko. V paneli sa vypíše, koľko percent trajektórie leží vo vzduchu hrubého modelu – nízke číslo znamená, že model vzduch nenašiel dobre (skús menšiu uzavretosť alebo menší voxel).
 
-**Trajektória, ktorá nesedí s mračnom.** Ak vo vzduchu hrubého modelu leží menej než 70 % polôh, trajektória sa pri delení nepoužije. „Zarovnať na mračno“ hľadá posun (bez otočenia, do ±10 m), pri ktorom leží vo vzduchu najviac polôh: hrubá mriežka po 0,5 m, 30 najlepších miestnych maxím sa doladí po 0,1 a 0,02 m. V paneli sa vypíše posun a podiel vo vzduchu pred a po. Skúška: trajektória posunutá o 1,3 · −0,8 · 0,6 m sa vrátila s odchýlkou do 8 cm, podiel vo vzduchu 38 % → 92 %.
+**Trajektória, ktorá nesedí s mračnom.** Ak vo vzduchu hrubého modelu leží menej než 70 % polôh, trajektória sa pri delení nepoužije. „Zarovnať na mračno“ hľadá posun (bez otočenia, do ±10 m), pri ktorom leží vo vzduchu najviac polôh: hrubá mriežka po 0,5 m, 30 najlepších miestnych maxím sa doladí po 0,1 a 0,02 m. V paneli sa vypíše posun a podiel vo vzduchu pred a po. Posun sa dá zadať aj ručne v troch poliach (X, Y, Z v metroch); podiel vo vzduchu sa prepočíta po každej zmene. Skúška: trajektória posunutá o 1,3 · −0,8 · 0,6 m sa vrátila s odchýlkou do 8 cm, podiel vo vzduchu 38 % → 92 %.
 
 ## Strop a podlaha
 
@@ -56,8 +60,9 @@ Tlačidlo „Trajektória…“ načíta dráhu skenera v súradniciach mračna:
   3. *Vrecká*: hornina medzi dvoma úsekmi vzduchu nad sebou je platňa (polica, jazyk, most, balvan). Ak je platňa plytká (do „podtečenie do“) a tenšia z jej dvoch vrstiev vzduchu nikam ďalej nevedie, je to vrecko: pod chodbou patrí celé k podlahe, nad chodbou celé k stropu.
   4. *Blana*: vo vzdialenosti „okraj“ od obrysu pôdorysu sa blana ukotví v strede výšky vzduchu a k obrysu sa predĺži rovnakým sklonom (pri eliptickom profile presne do najširšieho miesta). Kotví sa len tam, kde sa vzduch k okraju zužuje; zvislé steny, okraje dier v skenovaní a stĺpy do veľkosti „podtečenie do“ nekotvia a blana sa k nim prenesie z okolia. Medzi kotvami je blana hladká (Laplaceova rovnica) a ostáva vo vzduchu: balvan ju nadvihne, kvapeľ stlačí.
      Medzery medzi bodmi zvislej steny (stĺp, kvapeľ) by dali falošný vzduch: úsek aspoň 3× nižší než sused, z ktorého vyrástol, je výklenok a ostane len vtedy, ak vedie aspoň 3 bunky do boku.
+     Nízky výklenok v oveľa vyššej stene (zárez pozdĺž vrstvovej plochy, medzera medzi bodmi steny; okolie aspoň 6× vyššie, hĺbka do „podtečenie do“) nepatrí do blany: neurčuje okraj pôdorysu ani kotvy a výšku blany preberá od svojho ústia.
   5. Blana sa napína nadrelaxovaním (SOR) v dvojitej presnosti, kým odhad zvyškovej chyby neklesne pod 2 mm. Miera nadrelaxovania sa volí podľa najväčšej vzdialenosti od kotvy; v strmej chodbe s riedkymi kotvami to sú tisíce krokov, inak ostane blana schodovitá.
-  6. Bod pod dnom alebo nad stropom úseku vzduchu vo vlastnej bunke (súvislý zhluk bodov, na strmej stene aj meter vysoký) patrí k podlahe, resp. k stropu toho úseku. Ostatné body sa priradia k najbližšiemu úseku vzduchu: nad blanou je strop, pod ňou podlaha, vo vrecku podľa vrecka. Kde je blana prilepená na dno alebo strop úseku, patrí k nemu aj vrstva bodov do 15 cm. Body ďalej než 0,6 m od vzduchu ostanú nezaradené.
+  6. Bod pod dnom alebo nad stropom úseku vzduchu vo vlastnej bunke (súvislý zhluk bodov, na strmej stene aj meter vysoký) sa posudzuje podľa blany tohto úseku, nie suseda. Ostatné body sa priradia k najbližšiemu úseku vzduchu: nad blanou je strop, pod ňou podlaha, vo vrecku podľa vrecka. Kde je blana prilepená na dno alebo strop úseku, patrí k nemu aj vrstva bodov do 15 cm. Body ďalej než 0,6 m od vzduchu ostanú nezaradené.
 
   „Zobraziť model“ ukáže blanu (tmavšie sú kotvy).
 - **model jaskyne (polovica výšky)** — z mračna sa postaví voxelový model (voxel = „bunka“, pri veľkom mračne sa sám zväčší, najviac 200 mil. voxelov). Steny sa zahustia o „zacelenie“ voxelov, aby lúče neprekĺzli cez diery a medzery. Z každého prázdneho voxelu sa vrhne lúč v 26 smeroch a spočíta sa, cez koľko stien prejde: zo vzduchu jaskyne cez nepárny počet (jednu stenu), z horniny aj z vnútra stĺpa či balvanu cez párny (žiadnu alebo dve). Vzduch sú voxely, kde je nepárnych smerov aspoň „uzavretosť“ (predvolene 15 z 26). Vzduch sa po stĺpcoch rozdelí na úseky; spodok úseku je dno, vrch strop. Drobné oddelené vrecká a vzduch uzavretý v predmetoch sa zahodia. Každý bod sa priradí k najbližšiemu úseku vzduchu (krátke úseky majú prirážku): nad jeho polovicou je strop, pod ňou podlaha. Body bez vzduchu do vzdialenosti zacelenie + 3 voxely ostanú nezaradené. „Zobraziť model“ ukáže dno (oranžovo) a strop (modro) vzduchu.
