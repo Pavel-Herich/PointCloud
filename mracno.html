@@ -45,7 +45,7 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
 <body>
 <div id="app">
 <aside>
-  <h1><a href="index.html">PointCloud</a> <span class="k">· etapa 2e</span></h1>
+  <h1><a href="index.html">PointCloud</a> <span class="k">· etapa 2f</span></h1>
 
   <section>
     <h2>Súbor</h2>
@@ -123,6 +123,7 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
     <div class="row cfD"><label class="k" title="Bunka pôdorysu jemného modelu, v ktorom sa napína blana">jemná bunka <input type="number" id="cfF" value="0.1" step="0.01" min="0.02" class="n"> m</label>
       <label class="k" title="Blana sa kotví v tejto vzdialenosti od okraja pôdorysu; výklenky menšie než toto okraj neposúvajú">okraj <input type="number" id="cfS" value="0.3" step="0.05" min="0.05" class="n"> m</label></div>
     <div class="row cfD"><label class="k" title="Podtečenie, vrecko alebo medzera pod balvanom do tejto hĺbky patrí k chodbe nad sebou; hlbšie je samostatná úroveň. Rovnako veľké stĺpy sa neberú ako okraj.">podtečenie do <input type="number" id="cfD" value="2" step="0.5" min="0" class="n"> m</label></div>
+    <div class="row cfD"><label class="k" title="Body ďalej než 0,6 m od vzduchu modelu ostávajú nezaradené (vrchol komína, okraj výrezu, úzke miesta). Do tejto vzdialenosti po povrchu dostanú triedu najbližších zaradených bodov. 0 = nedopĺňať.">nezaradené doplniť do <input type="number" id="cfU" value="3" step="0.5" min="0" class="n"> m</label></div>
     <div class="row cfC"><label class="k"><input type="checkbox" id="mdlShow"> zobraziť model (blana, resp. dno a strop vzduchu)</label></div>
     <div class="row"><button id="bCf" class="pri" disabled>Rozdeliť</button></div>
     <div class="row"><span class="k">zobraziť:</span><label class="k"><input type="checkbox" class="cv" data-k="1" checked> strop</label>
@@ -474,9 +475,9 @@ function KERNELS(){
         while(h0<h1){ const u=bq[h0++]; if(TF[u]) tr=true; nbs(u,(j)=>{ if(NF[j]&&!SEC[j]&&!lab[j]){ lab[j]=1; bq[h1++]=j; } }); }
         const cnt=h1; for(let t=0;t<cnt;t++) dq[bq[t]]=0;
         // hĺbka od ústia: ústie = výklenok so susedom mimo výklenku
-        // každý sused mimo výklenku musí byť aspoň 6× vyšší než najvyššie miesto výklenku – inak je to zužujúci sa okraj alebo pokračovanie bežného priestoru
-        const comp=bq.slice(0,cnt); let b0=0, b1=0, mx=0, low=false, hm=0; for(const u of comp) if(ZC[u]-ZF[u]>hm) hm=ZC[u]-ZF[u];
-        for(const u of comp){ let pj=-1, ph=1e30; nbs(u,(j)=>{ if(!NF[j]&&!SEC[j]){ const hj=ZC[j]-ZF[j]; if(hj<6*hm) low=true; if(hj<ph){ ph=hj; pj=j; } } }); if(pj>=0){ dq[u]=1; PAR[u]=pj; bq[b1++]=u; } }   // ústie: najnižší zo susedov (najbližší priestor)
+        // každý sused mimo výklenku musí byť aspoň 3× vyšší než úsek výklenku vedľa neho – inak výklenok nadväzuje na bežný priestor a je jeho súčasťou
+        const comp=bq.slice(0,cnt); let b0=0, b1=0, mx=0, low=false;
+        for(const u of comp){ let pj=-1, ph=1e30; const hu=ZC[u]-ZF[u]; nbs(u,(j)=>{ if(!NF[j]&&!SEC[j]){ const hj=ZC[j]-ZF[j]; if(hj<3*hu) low=true; if(hj<ph){ ph=hj; pj=j; } } }); if(pj>=0){ dq[u]=1; PAR[u]=pj; bq[b1++]=u; } }   // ústie: najnižší zo susedov (najbližší priestor)
         if(!b1||low){ for(const u of comp) PAR[u]=u; continue; }
         while(b0<b1){ const u=bq[b0++]; if(dq[u]>mx) mx=dq[u]; nbs(u,(j)=>{ if(NF[j]&&!SEC[j]&&!dq[j]){ dq[j]=dq[u]+1; PAR[j]=PAR[u]; bq[b1++]=j; } }); }
         if(tr||mx>Dc||b1<cnt){ for(const u of comp) PAR[u]=u; continue; }
@@ -499,21 +500,31 @@ function KERNELS(){
       for(let d=0;d<4&&!src;d++){ if(NB[4*q+d]>=0) continue; const b=nbc(q,d); if(b>=0&&E[b]===3) continue; const w=WB[q]; if(((w>>(4+d))&1)&&!((w>>d)&1)) continue; src=true; }
       if(src){ dist[q]=0; bq[b1++]=q; nSrc++; } }
     while(b0<b1){ const q=bq[b0++]; for(let d=0;d<4;d++){ const j=NB[4*q+d]; if(j>=0&&dist[j]<0){ dist[j]=dist[q]+1; pred[j]=q; bq[b1++]=j; } } }
-    // 5. kotvy: uzly vo vzdialenosti s od okraja (alebo hrebeň užšej chodby), kde sa vzduch smerom k okraju zužuje
-    const own=new Int32Array(N1).fill(-1), GZ=new Float32Array(N1); let nAn=0; b0=b1=0;
+    // 5. kotvy: uzly vo vzdialenosti s od okraja (alebo hrebeň užšej chodby), kde sa vzduch smerom k okraju zužuje.
+    // Výška kotvy (stred výšky uzla) a jej sklon k okraju sa najprv vyhladia pozdĺž okraja: na zašumenej stene sa susedné kotvy líšia aj o decimetre a hranica by bola schodovitá.
+    // Kotva je pružina s tuhosťou AW k výške AV (tuhá, ale blana ju pri zjavnom rozpore so susedmi prehlasuje).
+    const own=new Int32Array(N1).fill(-1), GZ=new Float32Array(N1), RV=new Float32Array(N1), AW=new Float32Array(mk(4*N1)), AV=new Float32Array(mk(4*N1)), kw=a.kw; let nAn=0; b0=b1=0;
     const mid=(q)=>(ZF[q]+ZC[q])*0.5;
     for(let q=0;q<n;q++){ if(SEC[q]||dist[q]<0) continue; const dR=dist[q]; if(dR>Sc||dR===0) continue;
       if(dR<Sc){ let deeper=false; for(let d=0;d<4;d++){ const j=NB[4*q+d]; if(j>=0&&dist[j]>dR){ deeper=true; break; } } if(deeper) continue; }
       let qh=q; const dh=dR>>1; for(let k=dR;k>dh&&pred[qh]>=0;k--) qh=pred[qh];
       const hR=ZC[q]-ZF[q], conf=1-(ZC[qh]-ZF[qh])/hR; if(!(conf>=a.tau)) continue;
       let gz=(mid(qh)-mid(q))/(dR-dh); const gm=3*c; if(gz>gm) gz=gm; else if(gz<-gm) gz=-gm;
-      own[q]=q; GZ[q]=gz; FX[q]=1; MV[q]=mid(q); bq[b1++]=q; nAn++; }
-    while(b0<b1){ const u=bq[b0++], R=own[u]; for(let d=0;d<4;d++){ const j=NB[4*u+d]; if(j>=0&&own[j]<0&&dist[j]>=0&&dist[j]<dist[u]){ own[j]=R; FX[j]=1; MV[j]=mid(R)+GZ[R]*(dist[R]-dist[j]); bq[b1++]=j; } } }
+      own[q]=q; GZ[q]=gz; RV[q]=mid(q); AW[q]=kw*conf; bq[b1++]=q; nAn++; }
+    { const rim=bq.slice(0,b1), adj=[], t1=new Float32Array(rim.length), t2=new Float32Array(rim.length);
+      for(const q of rim){ const cl=CEL[q], x=cl%nx, y=(cl-x)/nx, l=[];
+        for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){ if(!dx&&!dy) continue; const xx=x+dx, yy=y+dy; if(xx<0||yy<0||xx>=nx||yy>=ny) continue; const b=yy*nx+xx; for(let j=FS[b];j<FS[b+1];j++){ if(own[j]!==j) continue; const hq=ZC[q]-ZF[q], hj=ZC[j]-ZF[j]; if(hj<=2*hq&&hq<=2*hj&&Math.abs(mid(q)-mid(j))<0.5*Math.max(hq,hj)) l.push(j); } }   // len kotvy tej istej úrovne
+        adj.push(l); }
+      for(let it=0;it<a.sm;it++){ for(let i=0;i<rim.length;i++){ const q=rim[i], l=adj[i]; if(l.length<2){ t1[i]=RV[q]; t2[i]=GZ[q]; continue; }   // koniec radu kotiev sa nemení, sklon pozdĺž chodby ostane
+          let s1=2*RV[q], s2=2*GZ[q]; for(const j of l){ s1+=RV[j]; s2+=GZ[j]; } t1[i]=s1/(2+l.length); t2[i]=s2/(2+l.length); }
+        for(let i=0;i<rim.length;i++){ RV[rim[i]]=t1[i]; GZ[rim[i]]=t2[i]; } }
+      for(const q of rim) AV[q]=RV[q]; }
+    while(b0<b1){ const u=bq[b0++], R=own[u]; for(let d=0;d<4;d++){ const j=NB[4*u+d]; if(j>=0&&own[j]<0&&dist[j]>=0&&dist[j]<dist[u]){ own[j]=R; AW[j]=AW[R]; AV[j]=RV[R]+GZ[R]*(dist[R]-dist[j]); bq[b1++]=j; } } }
     // 6. počiatočný odhad voľných uzlov: hodnota najbližšej kotvy, inak stred výšky
     // napína sa len cez obojstranné väzby (sused ma má tiež za suseda) – sústava je potom symetrická a nadrelaxovanie spoľahlivo konverguje
     for(let q=0;q<n;q++) for(let d=0;d<4;d++){ const j=NB[4*q+d]; if(j>=0&&NB[4*j+(d^1)]===q) NS[4*q+d]=j; }
     let mxa=0, nUn=0;
-    b0=b1=0; for(let q=0;q<n;q++){ stp[q]=-1; if(FX[q]===1){ stp[q]=0; dep[q]=0; bq[b1++]=q; } }
+    b0=b1=0; for(let q=0;q<n;q++){ stp[q]=-1; if(AW[q]>0&&!FX[q]){ stp[q]=0; dep[q]=0; MV[q]=AV[q]; bq[b1++]=q; } }
     while(b0<b1){ const u=bq[b0++]; for(let d=0;d<4;d++){ const j=NS[4*u+d]; if(j>=0&&stp[j]<0&&!FX[j]){ stp[j]=0; dep[j]=dep[u]+1; if(dep[j]>mxa) mxa=dep[j]; MV[j]=MV[u]; bq[b1++]=j; } } }
     // časti bez kotvy: hĺbka od ľubovoľného uzla (odhad rozmeru, podľa ktorého sa volí nadrelaxovanie)
     for(let q0=0;q0<n;q0++){ if(SEC[q0]||FX[q0]||stp[q0]>=0) continue; b0=b1=0; stp[q0]=1; dep[q0]=0; bq[b1++]=q0;
@@ -526,11 +537,35 @@ function KERNELS(){
       if(FX[q]) continue; nFree++; let v=stp[q]!==0?mid(q):MV[q]; if(v<LO[q]) v=LO[q]; else if(v>HI[q]) v=HI[q]; MV[q]=v; }
     const DS=new Int32Array(mk(4*N1)); DS.set(dist); let mxd=1; for(let q=0;q<n;q++) if(dist[q]>mxd) mxd=dist[q];
     for(let q=0;q<n;q++) if(SEC[q]===3){ SEC[q]=0; FX[q]=3; MV[q]=mid(q); }
-    return {r:{PAR:PAR.buffer,nNi,SEC:SEC.buffer,NB:NB.buffer,NS:NS.buffer,FX:FX.buffer,MV:MV.buffer,LO:LO.buffer,HI:HI.buffer,DS:DS.buffer,nSec,nPk,nSlab:rs.length,nSrc,nAn,nFree,mxd,mxa,nUn}}; },
-  sor(S,a){ const LO=new Float64Array(a.LO), HI=new Float64Array(a.HI), NB=new Int32Array(a.NB), FX=new Uint8Array(a.FX), MV=new Float64Array(a.MV), w=a.w; let mx=0;
+    return {r:{AW:AW.buffer,AV:AV.buffer,PAR:PAR.buffer,nNi,SEC:SEC.buffer,NB:NB.buffer,NS:NS.buffer,FX:FX.buffer,MV:MV.buffer,LO:LO.buffer,HI:HI.buffer,DS:DS.buffer,nSec,nPk,nSlab:rs.length,nSrc,nAn,nFree,mxd,mxa,nUn}}; },
+  /* Podtečenia podľa napnutej blany: nízky úsek pri okraji, ktorý leží celý pod (alebo nad) blanou svojho aspoň 2× vyššieho suseda, je výklenok steny –
+     zárez pri päte steny, podtečenie, medzera medzi bodmi. Blana by v ňom musela skočiť, preto vlastnú nemá: výšku preberie od suseda (PAR) a z blany vypadne.
+     Šíri sa po susedoch, ktorí ležia tiež celí mimo blany hostiteľa; ak by siahal ďalej než D alebo ním prešla trajektória, je to samostatný priestor a ostáva. */
+  slv(S,a){ const FS=new Uint32Array(a.FS), ZF=new Float32Array(a.ZF), ZC=new Float32Array(a.ZC), TF=new Uint8Array(a.TF), SEC=new Uint8Array(a.SEC), FX=new Uint8Array(a.FX), PAR=new Int32Array(a.PAR), NS=new Int32Array(a.NS),
+      MV=new Float64Array(a.MV), AW=new Float32Array(a.AW), g=a.g, nx=g.nx, ny=g.ny, n=FS[nx*ny], Dc=Math.max(1,Math.round(a.D/g.c)), mg=a.mg, cel=new Int32Array(n), DX=[1,-1,0,0], DY=[0,0,1,-1];
+    for(let c=0;c<nx*ny;c++) for(let q=FS[c];q<FS[c+1];q++) cel[q]=c;
+    const free=(q)=>!SEC[q]&&!FX[q], out=(q,m)=>ZC[q]+mg<m||ZF[q]-mg>m, st=new Int32Array(n).fill(-1), qu=new Int32Array(n); let ns=0;
+    const nbs=(q,fn)=>{ const c=cel[q], x=c%nx, y=(c-x)/nx; for(let d=0;d<4;d++){ const xx=x+DX[d], yy=y+DY[d]; if(xx<0||yy<0||xx>=nx||yy>=ny) continue; const b=yy*nx+xx; for(let j=FS[b];j<FS[b+1];j++) if(Math.min(ZC[q],ZC[j])-Math.max(ZF[q],ZF[j])>0) fn(j); } };
+    for(let q0=0;q0<n;q0++){ if(!free(q0)||st[q0]>=0) continue; const h0=ZC[q0]-ZF[q0]; let H=-1;
+      nbs(q0,(j)=>{ if(H<0&&free(j)&&st[j]<0&&ZC[j]-ZF[j]>=2*h0&&out(q0,MV[j])) H=j; });
+      // sused je vrecko: hostiteľom je voľný úsek v tom istom stĺpci nad alebo pod vreckom (výklenok pri vrecku patrí pod tú istú blanu)
+      if(H<0) nbs(q0,(j)=>{ if(H>=0||!SEC[j]) return; for(let k=FS[cel[j]];k<FS[cel[j]+1];k++) if(k!==j&&free(k)&&st[k]<0&&ZC[k]-ZF[k]>=2*h0&&out(q0,MV[k])){ H=k; break; } });
+      if(H<0) continue;
+      const m=MV[H]; let h0q=0, h1=0, mx=0, bad=false; st[q0]=0; qu[h1++]=q0;
+      while(h0q<h1){ const u=qu[h0q++]; if(TF[u]) bad=true; if(st[u]>mx) mx=st[u]; if(st[u]>=Dc){ bad=true; continue; }
+        nbs(u,(v)=>{ if(v!==H&&free(v)&&st[v]<0&&out(v,m)&&ZC[v]-ZF[v]<ZC[H]-ZF[H]){ st[v]=st[u]+1; qu[h1++]=v; } }); }
+      if(bad){ for(let t=0;t<h1;t++) st[qu[t]]=-2; continue; }      // -2: skúšané a zamietnuté, znova sa neskúša
+      for(let t=0;t<h1;t++){ const u=qu[t]; PAR[u]=H; FX[u]=3; AW[u]=0; ns++; for(let d=0;d<4;d++){ const j=NS[4*u+d]; if(j>=0){ NS[4*j+(d^1)]=-1; NS[4*u+d]=-1; } } } }
+    // úsek, ktorý nemá voľného suseda a visí len na vrecku alebo výklenku, sa k nemu pridá
+    const cut=(u)=>{ AW[u]=0; ns++; for(let d=0;d<4;d++){ const j=NS[4*u+d]; if(j>=0){ NS[4*j+(d^1)]=-1; NS[4*u+d]=-1; } } };
+    for(let ch=true;ch;){ ch=false; for(let q=0;q<n;q++){ if(!free(q)) continue; let any=false, sj=-1, pj=-1; nbs(q,(j)=>{ if(free(j)) any=true; else if(SEC[j]){ if(sj<0) sj=j; } else if(FX[j]===3&&pj<0) pj=j; });
+        if(any) continue; if(sj>=0){ SEC[q]=SEC[sj]; FX[q]=2; cut(q); ch=true; } else if(pj>=0){ PAR[q]=PAR[pj]; FX[q]=3; cut(q); ch=true; } } }
+    for(let q=0;q<n;q++){ let p=PAR[q]; while(PAR[p]!==p) p=PAR[p]; PAR[q]=p; }      // hostiteľ, ktorý sa sám stal výklenkom, odovzdá svojich ďalej
+    return {r:{ns,PAR:PAR.buffer,FX:FX.buffer,AW:AW.buffer,NS:NS.buffer}}; },
+  sor(S,a){ const LO=new Float64Array(a.LO), HI=new Float64Array(a.HI), NB=new Int32Array(a.NB), FX=new Uint8Array(a.FX), MV=new Float64Array(a.MV), AW=new Float32Array(a.AW), AV=new Float32Array(a.AV), w=a.w; let mx=0;
     for(let it=0;it<a.it;it++){ mx=0;
       for(let q=a.q0;q<a.q1;q++){ if(FX[q]) continue; let s=0, k=0;
-        for(let d=0;d<4;d++){ const j=NB[4*q+d]; if(j>=0){ s+=MV[j]; k++; } } if(!k) continue;
+        for(let d=0;d<4;d++){ const j=NB[4*q+d]; if(j>=0){ s+=MV[j]; k++; } } const aw=AW[q]; if(aw>0){ s+=aw*AV[q]; k+=aw; } if(!k) continue;
         const lo=LO[q], hi=HI[q], m0=MV[q]; let v=m0+w*(s/k-m0); if(v<lo) v=lo; else if(v>hi) v=hi;
         const dl=v>m0?v-m0:m0-v; if(dl>mx) mx=dl; MV[q]=v; } }
     return {r:mx}; },
@@ -540,7 +575,7 @@ function KERNELS(){
     // bod vo výške úseku q: podľa blany; kde je blana prilepená na dno (strop) úseku, patrí tenká vrstva bodov tesne nad dnom (pod stropom) ešte k nemu
     const side=(q,z)=>{ const sc=SEC[q]; if(sc) return sc; const pq=PAR[q]; if(pq!==q) return z>=MV[pq]?1:2;   // výklenok: podľa blany pri ústí
       const m=MV[q], lo=ZF[q], hi=ZC[q], bw=Math.min(0.15,0.25*(hi-lo));
-      if(z>=m) return (m-lo<=0.051&&z-lo<bw)?2:1; return (hi-m<=0.051&&hi-z<bw)?1:2; };
+      if(z>=m) return (m>=lo&&m-lo<=0.051&&z-lo<bw)?2:1; return (m<=hi&&hi-m<=0.051&&hi-z<bw)?1:2; };
     for(let i=a.a,o=a.a*3;i<a.b;i++,o+=3){ if(M[i]>=2) continue; const z=X[o+2], ix=Math.floor((X[o]-g.x0)*ic), iy=Math.floor((X[o+1]-g.y0)*ic); let cl=-1;
       // 1. vlastná bunka: bod vo vzduchu úseku, alebo v zhluku bodov, ktorý úsek zdola či zhora ohraničuje – rozhodne blana tohto úseku (nie suseda)
       if(ix>=0&&iy>=0&&ix<nx&&iy<ny){ const c0=iy*nx+ix;
@@ -554,6 +589,23 @@ function KERNELS(){
         if(bn>=0&&best<=Rd) cl=side(bn,z); else { cl=0; n0++; } }
       K[i]=cl; }
     return {r:n0}; },
+  /* Nezaradené body dostanú triedu najbližšieho zaradeného povrchu. Mriežka voxelov: B = prevaha stropu (+) alebo podlahy (−) vo voxeli, U = sú v ňom nezaradené body.
+     lab2 šíri triedu zo zaradených voxelov cez susedné voxely s nezaradenými bodmi (26 susedov), najviac a.md krokov – teda po povrchu, nie cez vzduch ani horninu. */
+  lab1(S,a){ const X=S.X, M=S.M, K=S.K, g=a.g, B=new Int32Array(a.B), U=new Uint8Array(a.U), nx=g.nx, sl=g.nx*g.ny;
+    for(let i=a.a,o=a.a*3;i<a.b;i++,o+=3){ if(M[i]>=2) continue; const v=Math.floor((X[o+2]-g.z0)*g.ih)*sl+Math.floor((X[o+1]-g.y0)*g.ih)*nx+Math.floor((X[o]-g.x0)*g.ih), k=K[i];
+      if(k===1) B[v]++; else if(k===2) B[v]--; else U[v]=1; } return {r:0}; },
+  lab2(S,a){ const g=a.g, B=new Int32Array(a.B), U=new Uint8Array(a.U), L=new Int8Array(a.L), nx=g.nx, ny=g.ny, nz=g.nz, sl=nx*ny, N=sl*nz; let m=0;
+    for(let v=0;v<N;v++) if(B[v]||U[v]) m++; let cur=new Int32Array(m), nxt=new Int32Array(m), nc=0, nn=0, filled=0;
+    for(let v=0;v<N;v++) if(B[v]){ L[v]=B[v]>0?1:-1; cur[nc++]=v; }
+    for(let st=0;st<a.md&&nc;st++){ nn=0;
+      for(let t=0;t<nc;t++){ const v=cur[t], l=L[v], z=Math.floor(v/sl), r=v-z*sl, y=Math.floor(r/nx), x=r-y*nx;
+        for(let dz=-1;dz<=1;dz++){ const Z=z+dz; if(Z<0||Z>=nz) continue; for(let dy=-1;dy<=1;dy++){ const Y=y+dy; if(Y<0||Y>=ny) continue; for(let dx=-1;dx<=1;dx++){ const Xx=x+dx; if(Xx<0||Xx>=nx) continue;
+          const u=(Z*ny+Y)*nx+Xx; if(U[u]&&!L[u]){ L[u]=l; nxt[nn++]=u; filled++; } } } } }
+      const tmp=cur; cur=nxt; nxt=tmp; nc=nn; }
+    return {r:filled}; },
+  lab3(S,a){ const X=S.X, M=S.M, K=S.K, g=a.g, L=new Int8Array(a.L), nx=g.nx, sl=g.nx*g.ny; let n=0;
+    for(let i=a.a,o=a.a*3;i<a.b;i++,o+=3){ if(M[i]>=2||K[i]) continue; const l=L[Math.floor((X[o+2]-g.z0)*g.ih)*sl+Math.floor((X[o+1]-g.y0)*g.ih)*nx+Math.floor((X[o]-g.x0)*g.ih)]; if(l){ K[i]=l>0?1:2; n++; } }
+    return {r:n}; },
   selClass(S,a){ const M=S.M, K=S.K, cv=a.cv, cls=a.cls, op=a.op|0, R=[0,0,0,0,0];   // op 0: vybrať len triedu, 1: pridať ju k výberu, 2: odznačiť ju
     for(let i=a.a;i<a.b;i++){ let v=M[i]; if(v>=2) continue; const k=K[i];
       if((cv>>k)&1){ const nv=op===0?(k===cls?1:0):k===cls?(op===1?1:0):v; if(nv!==v){ M[i]=nv; v=nv; } }
@@ -1247,19 +1299,28 @@ async function classifyBlana(cell){
   if(!n) throw new Error("jemný model nenašiel vzduch");
   setBusy("Blana: úrovne a kotvy…"); await tick();
   const B={FS:L.FS.buffer,ZF:L.ZF.buffer,ZC:L.ZC.buffer};
-  const H=await exec(0,"sheet",{...B,WB:L.WB.buffer,TF:L.TF.buffer,NF:L.NF.buffer,g:L.g,D:Math.max(0,+$("cfD").value||0),s:Math.max(L.c,+$("cfS").value||0.3),tau:self.TAU||0.15,shared:SHARED});
+  const H=await exec(0,"sheet",{...B,WB:L.WB.buffer,TF:L.TF.buffer,NF:L.NF.buffer,g:L.g,D:Math.max(0,+$("cfD").value||0),s:Math.max(L.c,+$("cfS").value||0.3),tau:self.TAU||0.15,kw:self.KW||10,sm:self.SM===undefined?30:self.SM,shared:SHARED});
   setBusy("Blana: napínam…"); await tick();
   // relaxácia s nadrelaxovaním podľa najväčšej vzdialenosti od kotvy (v bunkách); končí, až keď odhad zvyškovej chyby klesne pod 2 mm
   const Lw=Math.max(H.mxd,H.mxa,4), w=Math.min(1.9995,2/(1+Math.sin(Math.PI/(2*Lw+2)))), thr=0.002*(2-w), smin=2*Lw, smax=Math.min(400000,40*Lw+2000), it=50, par=n>400000;
-  const qr=(i)=>({q0:Math.floor(i*n/NW),q1:Math.floor((i+1)*n/NW)}), sa={LO:H.LO,HI:H.HI,NB:H.NS,FX:H.FX,MV:H.MV,w,it}; let sweeps=0, mx=1, tl=performance.now();
-  while((mx>thr||sweeps<smin)&&sweeps<smax){ mx=par?Math.max(...await run("sor",(i)=>({...qr(i),...sa}))):await exec(0,"sor",{q0:0,q1:n,...sa}); sweeps+=it;
-    if(performance.now()-tl>300){ tl=performance.now(); setBusy(`Blana: napínam… (${fN(sweeps)} krokov, zmena ${f1(mx*1000,3)} mm)`); await tick(); } }
+  const qr=(i)=>({q0:Math.floor(i*n/NW),q1:Math.floor((i+1)*n/NW)}), sa={LO:H.LO,HI:H.HI,NB:H.NS,FX:H.FX,MV:H.MV,AW:H.AW,AV:H.AV,w,it}; let sweeps=0, mx=1, tl=performance.now();
+  const relax=async()=>{ let sw=0; mx=1; while((mx>thr||sw<smin)&&sw<smax){ mx=par?Math.max(...await run("sor",(i)=>({...qr(i),...sa}))):await exec(0,"sor",{q0:0,q1:n,...sa}); sw+=it; sweeps+=it;
+    if(performance.now()-tl>300){ tl=performance.now(); setBusy(`Blana: napínam… (${fN(sweeps)} krokov, zmena ${f1(mx*1000,3)} mm)`); await tick(); } } };
+  // napnúť, vyradiť podtečenia (úseky celé pod alebo nad blanou vyššieho suseda) a napnúť znova bez nich
+  let nSl=0; await relax();
+  for(let pass=0;pass<3;pass++){ const r=await exec(0,"slv",{...B,TF:L.TF.buffer,SEC:H.SEC,FX:H.FX,PAR:H.PAR,NS:H.NS,MV:H.MV,AW:H.AW,g:L.g,D:Math.max(0,+$("cfD").value||0),mg:0.1,shared:SHARED}); if(!r.ns) break; nSl+=r.ns; await relax(); }
   const t3=performance.now(); setBusy("Blana: triedim body…"); await tick();
   await run("cfb",(i)=>({...rg(i),...B,FB:L.FB.buffer,CT:L.CT.buffer,MV:H.MV,SEC:H.SEC,PAR:H.PAR,g:L.g,R:Math.ceil(0.5/L.c),Rd:0.6}));
-  L.Z=null; L.CS=null; D.air=air; D.lvl={...L,SEC:new Uint8Array(H.SEC),FX:new Uint8Array(H.FX),MV:new Float64Array(H.MV),NB:new Int32Array(H.NB),PAR:new Int32Array(H.PAR),DS:new Int32Array(H.DS),st:H};
+  // nezaradené body (ďalej než 0,6 m od vzduchu modelu) podľa najbližšieho zaradeného povrchu do vzdialenosti „doplniť do“
+  let nLab=0; const mdU=Math.max(0,+$("cfU").value||0);
+  if(mdU>0){ setBusy("Blana: dopĺňam nezaradené body…"); await tick(); const bb=air.bb, ext=[bb[3]-bb[0],bb[4]-bb[1],bb[5]-bb[2]], hv=Math.max(0.25,Math.cbrt(ext[0]*ext[1]*ext[2]/48e6)),
+      vg={x0:bb[0]-hv,y0:bb[1]-hv,z0:bb[2]-hv,ih:1/hv,nx:Math.ceil(ext[0]/hv)+3,ny:Math.ceil(ext[1]/hv)+3,nz:Math.ceil(ext[2]/hv)+3}, N=vg.nx*vg.ny*vg.nz, VB=alloc(4*N), VU=alloc(N), VL=alloc(N);
+    await run("lab1",(i)=>({...rg(i),g:vg,B:VB,U:VU})); await exec(0,"lab2",{g:vg,B:VB,U:VU,L:VL,md:Math.max(1,Math.round(mdU/hv)),shared:SHARED});
+    nLab=(await run("lab3",(i)=>({...rg(i),g:vg,L:VL}))).reduce((x,y)=>x+y,0); }
+  L.Z=null; L.CS=null; D.air=air; D.lvl={...L,SEC:new Uint8Array(H.SEC),FX:new Uint8Array(H.FX),MV:new Float64Array(H.MV),NB:new Int32Array(H.NB),PAR:new Int32Array(H.PAR),AW:new Float32Array(H.AW),DS:new Int32Array(H.DS),st:H};
   if($("nCullM").checked) buildAirTex(air); else freeAirTex();
   buildBlanaVis(D.lvl);
-  return air.txt+`\nblana: bunka ${f1(L.c,2)} m · ${fN(n)} úsekov vzduchu, z toho ${fN(L.grown)} dorastených · plytkých výklenkov zrušených ${fN(L.nnp)} · výklenkov bez vlastnej blany ${fN(H.nNi)} · vreciek ${fN(H.nPk)} · kotiev ${fN(H.nAn)} · medzera od ${f1(L.g0*100,0)} cm`+
+  return air.txt+`\nblana: bunka ${f1(L.c,2)} m · ${fN(n)} úsekov vzduchu, z toho ${fN(L.grown)} dorastených · plytkých výklenkov zrušených ${fN(L.nnp)} · výklenkov bez vlastnej blany ${fN(H.nNi+nSl)} · vreciek ${fN(H.nPk)} · kotiev ${fN(H.nAn)} · medzera od ${f1(L.g0*100,0)} cm`+(nLab?` · podľa okolia doplnených ${fN(nLab)} bodov`:"")+
     (D.traj&&air.trf>=0.7?`\ntrajektória: ${fN(L.tall)} polôh, z nich ${fN(L.tin)} už vo vzduchu modelu, ${fN(L.nts)} nových zárodkov`:"")+"\n"+
     `čas ${f1((performance.now()-t0)/1000,2)} s (model ${f1((t1-t0)/1000,2)} · úrovne ${f1((t2-t1)/1000,2)} · blana ${f1((t3-t2)/1000,2)} s, ${fN(sweeps)} krokov, najďalej od kotvy ${fN(Lw)} buniek)`;
 }
@@ -1267,7 +1328,7 @@ function buildBlanaVis(L){
   freeModel(); const g=L.g, nx=g.nx, c=g.c, nc=nx*g.ny; let m=0; for(let q=0;q<L.n;q++) if(!L.SEC[q]) m++;
   const P=new Float32Array(m*3), C=new Uint8Array(m*4); let k=0;
   for(let cl=0;cl<nc;cl++){ const x=cl%nx, y=(cl-x)/nx; for(let q=L.FS[cl];q<L.FS[cl+1];q++){ if(L.SEC[q]) continue;
-    P[k*3]=g.x0+(x+0.5)*c; P[k*3+1]=g.y0+(y+0.5)*c; P[k*3+2]=L.MV[L.PAR[q]]; C.set(L.FX[q]===1?[150,70,230,255]:L.FX[q]===3?[120,220,160,255]:[215,140,255,255],k*4); k++; } }
+    P[k*3]=g.x0+(x+0.5)*c; P[k*3+1]=g.y0+(y+0.5)*c; P[k*3+2]=L.MV[L.PAR[q]]; C.set(L.AW[q]>0?[150,70,230,255]:L.FX[q]===3?[120,220,160,255]:[215,140,255,255],k*4); k++; } }
   const vao=gl.createVertexArray(); gl.bindVertexArray(vao);
   const bp=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,bp); gl.bufferData(gl.ARRAY_BUFFER,P,gl.STATIC_DRAW); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,0,0);
   const bc=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,bc); gl.bufferData(gl.ARRAY_BUFFER,C,gl.STATIC_DRAW); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,4,gl.UNSIGNED_BYTE,true,0,0);
