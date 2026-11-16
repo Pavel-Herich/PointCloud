@@ -3,7 +3,7 @@
 Mračná bodov jaskýň v prehliadači (vo vývoji, neskôr modul PreTherionu).
 
 - `index.html` — úvodná stránka
-- `mracno.html` — práca s mračnom (etapy 1–2): načítanie PLY (binárne aj ASCII) vo vláknach, zobrazenie s riedením pri pohybe, strihanie lasom a kvádrom, krok späť, export binárneho PLY (float32 alebo float64, aj každý N-tý bod), zvýraznenie tvaru (EDL), úplný priehľad cez prednú stenu podľa modelu jaskyne, normály, trajektória skenera, oddelenie stropu od podlahy
+- `mracno.html` — práca s mračnom (etapy 1–2): načítanie PLY (binárne aj ASCII) vo vláknach, zobrazenie s riedením pri pohybe, strihanie lasom a kvádrom, krok späť, export binárneho PLY (float32 alebo float64, aj každý N-tý bod), zvýraznenie tvaru (EDL), úplný priehľad cez prednú stenu podľa modelu jaskyne, normály, trajektória skenera, oddelenie stropu od podlahy, rozvinutý rez pozdĺž lomovej čiary
 - `mracno_test.html` — test počítača: pamäť, vlákna, úložisko, čítanie PLY, kreslenie bodov
 - `coi-sw.js` — service worker, ktorý doplní hlavičky COOP/COEP (GitHub Pages ich nevie nastaviť); stránka je potom *cross-origin isolated* a vlákna môžu zdieľať pamäť (`SharedArrayBuffer`)
 
@@ -75,6 +75,19 @@ Tlačidlo „Trajektória…“ načíta dráhu skenera v súradniciach mračna:
 - **vrstvy (medzery)** — medzery väčšie ako „medzera“ rozdelia body v bunke na vrstvy; zhora sa striedajú strop, podlaha, strop… (poschodia). Vrstva vyššia ako „stena od“ sa delí v polovici.
 
 Triedy sa dajú zobraziť alebo skryť, vybrať („Vybrať strop / podlahu“, so Shift pridať k výberu), odznačiť („Odznačiť strop / podlahu“) a ručne opraviť lasom („Výber → strop / podlaha“). Laso, kváder, mazanie aj uloženie pôsobia len na zobrazené triedy — napríklad uloženie samotného stropu.
+
+## Rozvinutý rez
+
+Mračno sa vyrovná pozdĺž lomovej čiary v pôdoryse: X je staničenie (dĺžka pozdĺž čiary), Y odstup od čiary (vľavo kladný), výška ostáva. Pohľad zboku je rozvinutý pozdĺžny rez, pohľad zhora vyrovnaný pôdorys.
+
+**Lomové body** sa zadajú tromi spôsobmi:
+- „Lomové body: klikať“ – klik na mračno pridá bod (najlepšie pri pohľade zhora s úplným priehľadom, kliká sa na podlahu chodby); otáčanie a posun fungujú ďalej;
+- „Z trajektórie“ – trajektória skenera sa zjednoduší na lomovú čiaru (Douglas–Peucker v pôdoryse, odchýlka do zadanej hodnoty), po najvzdialenejšie miesto od začiatku, aby sa cesta späť neopakovala;
+- textové pole – `x y z` na riadok v súradniciach súboru (dá sa vložiť aj polygónový ťah).
+
+**Rozvinutie.** Bod patrí k najbližšiemu úseku čiary; hranicou medzi susednými úsekmi je os uhla v lomovom bode. Pri lome o uhol θ je pás úseku v odstupe d na vnútornej strane kratší a na vonkajšej dlhší o d·tan(θ/2). Tento rozdiel sa rozloží rovnomerne na celý úsek, takže rozvinutie je spojité – nič sa neprekrýva ani netrhá – a na osi presné. Nezobrazia sa body ďalej než „šírka pásu“ od čiary a body pri ohnisku vnútornej strany lomu, kde by sa úsek stlačil viac než 5×.
+
+„Ľavá stena“ a „Pravá stena“ zobrazia polovicu pásu a pozrú na ňu z osi (rez osou). Kváder („zobraziť len vnútro“) reže aj v rozvinutých súradniciach a „Uložiť PLY…“ uloží rozvinuté mračno. Výber, mazanie a delenie stropu a podlahy fungujú len v priestore; triedy a výber sa v rozvinutom zobrazení zachovajú.
 
 ## Skúšobná jaskyňa
 
