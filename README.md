@@ -20,11 +20,12 @@ Body sa držia v pamäti ako float32 voči lokálnemu počiatku (prvý bod zaokr
 
 ## Zobrazenie
 
-- **veľkosť bodu v priestore** — bod má veľkosť v centimetroch: zblízka sa zväčší a zaplní medzery, z diaľky ostane na najmenšej veľkosti (posuvník „bod“). Po načítaní sa nastaví na 5-násobok typickej vzdialenosti k najbližšiemu susedovi (vypíše sa v paneli). Väčšie body sú okrúhle.
+- **veľkosť bodu v priestore** — bod má veľkosť v centimetroch: zblízka sa zväčší a zaplní medzery, z diaľky ostane na najmenšej veľkosti (posuvník „bod“, predvolene 1 pixel). Väčšie body sú okrúhle.
+- **podľa hustoty okolia** (predvolené) — veľkosť bodu je „výplň“ × rozostup bodov v jeho okolí, najviac zadaný počet centimetrov. V hustom mračne sú body drobné a kresba jemná; v riedkom (tesné pokračovanie, okraj dosahu skenera) sú väčšie, aby ich bolo vidno. Rozostup sa po načítaní spočíta pre každý bod: voxely s hranou asi 8-násobku vzdialenosti k najbližšiemu susedovi (3 – 20 cm), počet bodov N vo voxeli a jeho 26 susedoch, rozostup ≈ 3,2·h/√N. Dve výnimky držia šum malý: bod s menej než 3 bodmi v okolí ostáva najmenší, a bod, ktorý má do 4 – 8 voxelov aspoň 3-krát hustejšie mračno (šum tesne pri hustej ploche), dostane veľkosť bodov tej plochy. Bez voľby má každý bod rovnakú veľkosť (5-násobok vzdialenosti k najbližšiemu susedovi).
 - obraz sa skladá z hĺbky scény v štyroch krokoch: dierky veľké 1 – 2 pixely sa zaplnia farbou okolia; hĺbka sa vyhladí s váhou podľa rozdielu hĺbok (hrany ostanú ostré, šum bodov a osamelé body pred plochou zmiznú); z vyhladenej hĺbky sa počíta tieňovanie
 - **zvýrazniť tvar** — eye-dome lighting: bod obrazu stmavne, ak je ďalej než jeho susedia
 - **plastickosť** — osvetlenie plochy zľava zhora; sklon plochy sa počíta z vyhladenej hĺbky, normály v súbore netreba
-- **vyhladenie** — polomer vyhladenia hĺbky v pixeloch (0 = vypnuté, obraz je potom bodkovaný)
+- **vyhladenie** — polomer vyhladenia hĺbky v pixeloch, s ním sa jemne vyhladzuje aj farba (váha susedných pixelov 0,3 pri 1, 0,5 pri 2, 0,7 od 3). Predvolená 1 dáva jemnú kresbu bez bodkovania; 0 = bez vyhladenia, každý pixel má farbu najbližšieho bodu ako v CloudCompare; väčšie hodnoty obraz zhladia a zhrubnú
 - **jas** a **pozadie** (tmavé, čierne, sivé, svetlé, biele)
 - **úplný priehľad podľa modelu jaskyne** — rozhoduje vzduch modelu pred bodom (smerom k oku) a za ním, po štyroch vzorkách 1,5 – 8 voxelov:
   - vzduch pred bodom: bod je vidno;
@@ -88,6 +89,28 @@ Mračno sa vyrovná pozdĺž lomovej čiary v pôdoryse: X je staničenie (dĺž
 **Rozvinutie.** Bod patrí k najbližšiemu úseku čiary; hranicou medzi susednými úsekmi je os uhla v lomovom bode. Pri lome o uhol θ je pás úseku v odstupe d na vnútornej strane kratší a na vonkajšej dlhší o d·tan(θ/2). Tento rozdiel sa rozloží rovnomerne na celý úsek, takže rozvinutie je spojité – nič sa neprekrýva ani netrhá – a na osi presné. Nezobrazia sa body ďalej než „šírka pásu“ od čiary a body pri ohnisku vnútornej strany lomu, kde by sa úsek stlačil viac než 5×.
 
 „Ľavá stena“ a „Pravá stena“ zobrazia polovicu pásu a pozrú na ňu z osi (rez osou). Kváder („zobraziť len vnútro“) reže aj v rozvinutých súradniciach a „Uložiť PLY…“ uloží rozvinuté mračno. Výber, mazanie a delenie stropu a podlahy fungujú len v priestore; triedy a výber sa v rozvinutom zobrazení zachovajú.
+
+## Obrys a priečne rezy
+
+Oba nástroje počítajú len zo zobrazených bodov (triedy, kváder „zobraziť len vnútro“) a výsledok otvoria v okne výkresu: ťahaním sa posúva, kolieskom približuje, dvojklik zobrazí celý; mriežka je popísaná v súradniciach súboru.
+
+**Obrys** je hranica priemetu bodov:
+- „Obrys zhora“ – pôdorys; v rozvinutom zobrazení vyrovnaný pôdorys (staničenie × odstup);
+- „Obrys zboku“ – v rozvinutom zobrazení rozvinutý pozdĺžny rez (staničenie × výška); v priestore priemet na zvislú rovinu v smere pohľadu kamery.
+
+Postup: body sa premietnu do rastra (bunka 5 cm; pri veľkom mračne sa zväčší, aby raster nemal viac než 20 mil. buniek), bunka platí od zadaného počtu bodov (osamelé body obrys nerozširujú), medzery do zadanej šírky sa zacelia (rozšírenie a zúženie o polovicu šírky), diery a ostrovčeky menšie než zadaná plocha sa zrušia. Hranica sa vedie pochodujúcimi štvorcami cez vyhladenú masku, takže nie je zubatá, a zjednoduší sa (Douglas–Peucker) na zadanú odchýlku. Vonkajší obrys a diery (stĺpy v pôdoryse) sú samostatné uzavreté čiary. Vypíše sa počet čiar a vrcholov, plocha, obvod a rozmer.
+
+**Priečny rez** – „Priečny rez: 2 body“ a dva kliky na mračno (najlepšie pri pohľade zhora), alebo súradnice `x1 y1 x2 y2` v poli pod tlačidlom. Berú sa body zo zvislého plátu zadanej hrúbky (5 cm) medzi bodmi A a B; vo výkrese je vodorovne vzdialenosť od A, zvislo výška. Obrys rezu je hranica vzduchu, ktorý body uzatvárajú:
+- z pásu bodov ostane jadro – bunky (2 cm) s aspoň štvrtinou najväčšieho počtu bodov do 8 cm; okraj pásu (šum, rozmazanie šikmej steny hrúbkou plátu) odpadne a čiara ide pri strede pásu;
+- medzery v stene do zadanej šírky sa zacelia; ak sa obrys neuzavrie, skúsi sa dvojnásobok a štvornásobok a napíše sa to;
+- kde úsečka končí vo vzduchu, ostáva rez otvorený a čiara tam končí.
+
+Vypíše sa dĺžka úsečky, počet bodov, plocha, šírka a výška rezu. V rozvinutom zobrazení je úsečka v rozvinutých súradniciach (rez kolmo na os je profil chodby v danom staničení).
+
+**Uloženie výkresu:**
+- SVG v mierke 1 : 100 (1 m = 10 mm) – čiary a pod nimi body ako obrázok, vhodné na dokreslenie;
+- DXF – lomené čiary v súradniciach súboru, vrstvy OBRYS a DIERY;
+- TH2 pre Therion – jeden scrap (`-projection plan`, `extended`, `[elevation azimut]` alebo `none` pri priečnom reze) s mierkou `-scale` (100 jednotiek kresby = 1 m) a stenami ako `line wall`; diery majú `-outline in`. Stanice a ostatnú kresbu treba doplniť v editore.
 
 ## Skúšobná jaskyňa
 

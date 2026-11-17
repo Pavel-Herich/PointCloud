@@ -40,12 +40,18 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
 #busy{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--gold);color:var(--gold);border-radius:4px;padding:6px 14px;display:none;pointer-events:none}
 #hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:15px;pointer-events:none;text-align:center;padding:20px}
 #view.drag{outline:2px dashed var(--gold);outline-offset:-8px}
+#dw{position:absolute;right:10px;bottom:34px;width:50%;height:58%;min-width:320px;background:#0b0f14;border:1px solid var(--line);border-radius:6px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+#dw.max{left:10px;top:10px;width:auto;height:auto}
+#dwBar{display:flex;gap:6px;align-items:center;padding:4px 6px 4px 10px;background:var(--panel);border-bottom:1px solid var(--line);font-size:12.5px}
+#dwBar button{padding:2px 8px}
+#dwI{padding:3px 10px;border-bottom:1px solid var(--line)}
+#dwC{flex:1;min-height:0;width:100%;display:block;cursor:grab;touch-action:none}
 </style>
 </head>
 <body>
 <div id="app">
 <aside>
-  <h1><a href="index.html">PointCloud</a> <span class="k">· etapa 3a</span></h1>
+  <h1><a href="index.html">PointCloud</a> <span class="k">· etapa 4a</span></h1>
 
   <section>
     <h2>Súbor</h2>
@@ -67,13 +73,15 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
   <section>
     <h2>Zobrazenie</h2>
     <div class="row"><label class="k">farba <select id="colMode"><option value="0">RGB</option><option value="1">výška</option><option value="2">strop / podlaha</option><option value="3" disabled>sklon (normály)</option></select></label>
-      <label class="k" title="Najmenšia veľkosť bodu v pixeloch">bod <input type="range" id="ps" min="1" max="6" step="0.5" value="1.5"></label></div>
+      <label class="k" title="Najmenšia veľkosť bodu v pixeloch">bod <input type="range" id="ps" min="1" max="6" step="0.5" value="1"></label></div>
     <div class="row"><label class="k" title="Bod má veľkosť v priestore: zblízka sa zväčší a zaplní medzery, z diaľky ostane najmenší"><input type="checkbox" id="psW" checked> veľkosť bodu v priestore</label>
-      <label class="k"><input type="number" id="psCm" value="2" min="0.2" max="30" step="0.5" style="width:3.6em"> cm</label></div>
+      <label class="k" title="Veľkosť bodu v priestore; pri veľkosti podľa hustoty je to najväčšia veľkosť"><input type="number" id="psCm" value="4" min="0.2" max="30" step="0.5" style="width:3.6em"> cm</label></div>
+    <div class="row"><label class="k" title="Veľkosť bodu podľa rozostupu bodov v jeho okolí (asi 15 cm): v hustom mračne sú body drobné a kresba jemná, v riedkom (tesné pokračovanie, okraj dosahu skenera) sú väčšie, aby ich bolo vidno. Osamelé body bez susedov a šum tesne pri hustej ploche ostávajú najmenšie."><input type="checkbox" id="psD" checked> podľa hustoty okolia</label>
+      <label class="k" title="Násobok rozostupu bodov: pri 1 sa susedné body práve dotýkajú, pri väčšej hodnote sa prekrývajú">výplň <input type="range" id="psK" min="0.5" max="4" step="0.1" value="1.5"></label></div>
     <div class="row"><label class="k" title="Eye-dome lighting: stmaví body, ktoré sú ďalej než ich susedia v obraze – vynikne tvar aj bez normál a farieb"><input type="checkbox" id="edl" checked> zvýrazniť tvar</label>
       <label class="k">sila <input type="range" id="edlS" min="0.1" max="2" step="0.1" value="0.5"></label></div>
-    <div class="row"><label class="k" title="Osvetlenie plochy zľava zhora; sklon plochy sa počíta z vyhladenej hĺbky obrazu, netreba normály">plastickosť <input type="range" id="shS" min="0" max="1.5" step="0.1" value="0.8"></label></div>
-    <div class="row"><label class="k" title="Vyhladenie hĺbky v obraze (v pixeloch): menej bodkovaný obraz, hrany ostávajú ostré. 0 = bez vyhladenia.">vyhladenie <input type="range" id="smR" min="0" max="12" step="1" value="4"></label></div>
+    <div class="row"><label class="k" title="Osvetlenie plochy zľava zhora; sklon plochy sa počíta z vyhladenej hĺbky obrazu, netreba normály">plastickosť <input type="range" id="shS" min="0" max="1.5" step="0.1" value="0.5"></label></div>
+    <div class="row"><label class="k" title="Vyhladenie hĺbky a farby v obraze (v pixeloch): menej bodkovaný, ale hrubší obraz. 0 = bez vyhladenia, každý pixel má farbu najbližšieho bodu (ako v CloudCompare).">vyhladenie <input type="range" id="smR" min="0" max="12" step="1" value="1"></label></div>
     <div class="row"><label class="k">jas <input type="range" id="bri" min="0.5" max="3" step="0.1" value="1.3"></label>
       <label class="k">pozadie <select id="bgSel"><option value="0">tmavé</option><option value="1">čierne</option><option value="2">sivé</option><option value="3">svetlé</option><option value="4">biele</option></select></label></div>
     <div class="row"><label class="k">body pri pohybe <select id="budget"><option value="5">5 mil.</option><option value="10">10 mil.</option><option value="20" selected>20 mil.</option><option value="40">40 mil.</option><option value="80">80 mil.</option></select></label></div>
@@ -153,6 +161,27 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
       V rozvinutom zobrazení sa dá pozerať, rezať kvádrom („zobraziť len vnútro“) a ukladať; výber, mazanie a delenie fungujú len v priestore.</p>
   </section>
 
+  <section>
+    <h2>Obrys a priečne rezy</h2>
+    <div class="row"><button id="bOutT" disabled title="Obrys priemetu zobrazených bodov zhora: pôdorys, v rozvinutom zobrazení vyrovnaný pôdorys">Obrys zhora</button>
+      <button id="bOutS" disabled title="Obrys priemetu zobrazených bodov zboku: v rozvinutom zobrazení rozvinutý pozdĺžny rez, v priestore priemet na zvislú rovinu v smere pohľadu kamery">Obrys zboku</button></div>
+    <div class="row"><label class="k" title="Bunka rastra, do ktorého sa body premietnu">bunka <input type="number" id="ouPx" value="5" step="1" min="0.5" class="n" style="width:52px"> cm</label>
+      <label class="k" title="Bunka sa ráta, ak do nej padne aspoň toľko bodov – osamelé body obrys nerozširujú">od <input type="number" id="ouMin" value="3" step="1" min="1" class="n" style="width:46px"> bodov</label></div>
+    <div class="row"><label class="k" title="Medzery v priemete do tejto šírky sa zacelia">zaceliť do <input type="number" id="ouCl" value="20" step="5" min="0" class="n" style="width:52px"> cm</label>
+      <label class="k" title="Diery menšie než toto sa vyplnia, menšie ostrovčeky zrušia">drobnosti do <input type="number" id="ouHole" value="0.3" step="0.1" min="0" class="n" style="width:52px"> m²</label></div>
+    <div class="row"><label class="k" title="Najväčšia odchýlka zjednodušenej čiary od hranice (obrys aj priečny rez)">zjednodušiť čiaru do <input type="number" id="ouTol" value="2" step="0.5" min="0" class="n" style="width:52px"> cm</label></div>
+    <div class="row"><button id="bSec" disabled title="Klikni na mračno dva body (najlepšie pri pohľade zhora): medzi nimi sa urobí zvislý rez. Esc zruší.">Priečny rez: 2 body</button>
+      <label class="k" title="Hrúbka zvislého plátu, z ktorého sa berú body rezu">hrúbka <input type="number" id="seT" value="5" step="1" min="0.5" class="n" style="width:52px"> cm</label></div>
+    <div class="row"><label class="k" title="Bunka rastra rezu">bunka <input type="number" id="sePx" value="2" step="0.5" min="0.5" class="n" style="width:46px"> cm</label>
+      <label class="k" title="Medzery v stene rezu do tejto šírky sa zacelia; ak sa obrys neuzavrie, skúsi sa dvojnásobok a štvornásobok">zaceliť do <input type="number" id="seCl" value="10" step="2" min="0" class="n" style="width:46px"> cm</label></div>
+    <div class="row"><input type="text" id="seTxt" disabled spellcheck="false" placeholder="rez: x1 y1 x2 y2 (súradnice súboru)" title="Koncové body rezu v súradniciach súboru (v rozvinutom zobrazení staničenie a odstup). Po úprave a Enter sa rez prepočíta." style="width:100%;background:#0b0f14;color:inherit;border:1px solid #2a3340;border-radius:4px;font:11px ui-monospace,Consolas,monospace;padding:4px"></div>
+    <div class="k" id="ouInfo"></div>
+    <p class="k">Obrys: zobrazené body sa premietnu do rastra, medzery sa zacelia a hranica sa prevedie na lomené čiary (vonkajší obrys a diery – napríklad stĺpy v pôdoryse).
+      V rozvinutom zobrazení dáva obrys zboku rozvinutý pozdĺžny rez a obrys zhora vyrovnaný pôdorys; kvádrom („zobraziť len vnútro“) sa dá obmedziť na časť.
+      Priečny rez: body zo zvislého plátu medzi dvomi bodmi; obrysom je hranica vzduchu, ktorý body uzatvárajú. Kde úsečka končí vo vzduchu, ostáva rez otvorený.
+      Výkres sa otvorí v okne: ťahaním sa posúva, kolieskom približuje, dvojklik zobrazí celý. Uloží sa ako SVG (1 : 100, s bodmi ako podkladom), DXF (súradnice súboru) alebo TH2 pre Therion (steny scrapu).</p>
+  </section>
+
   <section class="k">
     Ľavé tlačidlo otáča, pravé (alebo Shift + ľavé) posúva, koliesko približuje k miestu pod kurzorom, dvojklik nastaví stred otáčania na bod.
     S lasom otáča stlačené koliesko.
@@ -164,6 +193,13 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
   <canvas id="gl"></canvas>
   <canvas id="ov"></canvas>
   <div id="hint">Otvor mračno PLY (binárne alebo ASCII).<br>Súbor sa nikam neposiela — číta ho prehliadač priamo z disku.</div>
+  <div id="dw" hidden>
+    <div id="dwBar"><b id="dwT"></b><span style="flex:1"></span><label class="k" title="Zobraziť body pod čiarami"><input type="checkbox" id="dwP" checked> body</label>
+      <button id="dwSvg" title="Uložiť ako SVG v mierke 1 : 100">SVG</button><button id="dwDxf" title="Uložiť čiary ako DXF v súradniciach súboru">DXF</button><button id="dwTh2" title="Uložiť ako scrap pre Therion">TH2</button>
+      <button id="dwMax" title="Zväčšiť alebo zmenšiť okno">⤢</button><button id="dwX" title="Zavrieť">×</button></div>
+    <div id="dwI" class="k"></div>
+    <canvas id="dwC"></canvas>
+  </div>
   <div id="busy"></div>
   <div id="bar"></div>
 </div>
@@ -649,6 +685,40 @@ function KERNELS(){
     const tc=S.tC?new Uint32Array(S.tC.buffer,S.tC.byteOffset,n):null;
     for(let i=0,o=0;i<n;i++,o+=3){ const j=off[cell(X[o],X[o+1],X[o+2])]++, q=j*3; D[q]=X[o]; D[q+1]=X[o+1]; D[q+2]=X[o+2]; if(tc) DC[j]=tc[i]; if(tN) DN[j]=tN[i]; }
     S.tX=S.tC=S.tN=null; S.tn=0; return {r:1}; },
+  // premietnutie zobrazených bodov do rastra (obrys): u = ax·p, v = ay·p; v bunke počet bodov, najviac 255. Vlákna píšu do spoločného rastra bez zámkov – stratený prírastok nevadí.
+  occ(S,a){ const X=a.xu?S.XU:S.X, M=S.M, K=S.K, cv=a.cv, R=new Uint8Array(a.R), nx=a.nx, ny=a.ny, ip=1/a.px, u0=a.u0, v0=a.v0, ax=a.ax, ay=a.ay, bx=a.box; let n=0;
+    for(let i=a.a;i<a.b;i++){ if(M[i]>=2||!((cv>>K[i])&1)) continue; const o=i*3, x=X[o]; if(x>1e29) continue; const y=X[o+1], z=X[o+2];
+      if(bx&&(x<bx[0]||y<bx[1]||z<bx[2]||x>bx[3]||y>bx[4]||z>bx[5])) continue;
+      const iu=Math.floor((ax[0]*x+ax[1]*y+ax[2]*z-u0)*ip), iv=Math.floor((ay[0]*x+ay[1]*y+ay[2]*z-v0)*ip); if(iu<0||iu>=nx||iv<0||iv>=ny) continue;
+      const q=iv*nx+iu; if(R[q]<255) R[q]++; n++; }
+    return {r:n}; },
+  // priečny rez: zobrazené body vo zvislom pláte hrúbky 2·t okolo úsečky A–B (pôdorys). Vráti dvojice (vzdialenosť od A pozdĺž úsečky, výška) a triedu bodu.
+  slab(S,a){ const X=a.xu?S.XU:S.X, M=S.M, K=S.K, cv=a.cv, ax=a.ax, ay=a.ay, ux=a.ux, uy=a.uy, L=a.L, t=a.t, bx=a.box, cap=a.cap; let n=0, m=8192, U=new Float32Array(m*2), C=new Uint8Array(m);
+    for(let i=a.a;i<a.b;i++){ if(M[i]>=2||!((cv>>K[i])&1)) continue; const o=i*3, x=X[o]; if(x>1e29) continue; const y=X[o+1], dx=x-ax, dy=y-ay, w=dx*uy-dy*ux; if(w>t||w<-t) continue;
+      const u=dx*ux+dy*uy; if(u<0||u>L) continue; const z=X[o+2]; if(bx&&(x<bx[0]||y<bx[1]||z<bx[2]||x>bx[3]||y>bx[4]||z>bx[5])) continue;
+      if(n===m){ if(m>=cap) break; m*=2; const U2=new Float32Array(m*2), C2=new Uint8Array(m); U2.set(U); C2.set(C); U=U2; C=C2; }
+      U[2*n]=u; U[2*n+1]=z; C[n]=K[i]; n++; }
+    U=U.slice(0,2*n); C=C.slice(0,n); return {r:{n,U,C},t:[U.buffer,C.buffer]}; },
+  // rozostup bodov v okolí bodu (veľkosť bodu pri kreslení): voxely s hranou h, N = počet bodov vo voxeli bodu a jeho 26 susedoch; na ploche je rozostup ≈ 3,2·h/√N.
+  // Kód = 32·log2(rozostup v mm), 0 = osamelý bod (menej než 3 body v okolí). Ak je do 4 – 8 voxelov (hrubé bunky 4×4×4) aspoň 3-krát hustejšie mračno, bod je šum alebo
+  // okraj pri hustej ploche a dostane jej rozostup – kreslí sa rovnako drobný ako ona. Susedné bloky sa rátajú tiež, aby na ich hraniciach nevznikali švy.
+  dens(S,a){ const X=S.X, O=new Uint8Array(a.S), g=a.g, CI=new Int32Array(a.CI), ST=a.ST, CN=a.CN, GC=a.GC, h=a.h, ih=1/h, s=g.s, nx=g.nx, ny=g.ny, nz=g.nz, mg=9, m=Math.ceil(s*ih)+2*mg+1, mm=m*m,
+      G=new Uint16Array(m*mm), Q=new Uint8Array(m*mm), mc=(m>>2)+1, CQ=new Uint8Array(mc*mc*mc), k0=3200*h, TH=51;
+    for(let j=a.a;j<a.b;j++){ const c=GC[j], bx=c%nx, by=Math.floor(c/nx)%ny, bz=Math.floor(c/(nx*ny)), x0=g.mn[0]+bx*s-mg*h, y0=g.mn[1]+by*s-mg*h, z0=g.mn[2]+bz*s-mg*h; G.fill(0); Q.fill(0); CQ.fill(255);
+      for(let dz=-1;dz<=1;dz++){ const z_=bz+dz; if(z_<0||z_>=nz) continue; for(let dy=-1;dy<=1;dy++){ const y_=by+dy; if(y_<0||y_>=ny) continue; for(let dx=-1;dx<=1;dx++){ const x_=bx+dx; if(x_<0||x_>=nx) continue;
+        const q=CI[(z_*ny+y_)*nx+x_]; if(q<0) continue; const i0=ST[q], i1=i0+CN[q];
+        for(let i=i0;i<i1;i++){ const vx=Math.floor((X[i*3]-x0)*ih); if(vx<0||vx>=m) continue; const vy=Math.floor((X[i*3+1]-y0)*ih); if(vy<0||vy>=m) continue; const vz=Math.floor((X[i*3+2]-z0)*ih); if(vz<0||vz>=m) continue;
+          const v=(vz*m+vy)*m+vx; if(G[v]<65535) G[v]++; } } } }
+      for(let vz=1;vz<m-1;vz++) for(let vy=1;vy<m-1;vy++){ let v=(vz*m+vy)*m+1; for(let vx=1;vx<m-1;vx++,v++){ if(!G[v]) continue; let n=0;
+        for(let c2=-1;c2<=1;c2++) for(let c1=-1;c1<=1;c1++){ const o=v+c2*mm+c1*m; n+=G[o-1]+G[o]+G[o+1]; }
+        if(n<3){ Q[v]=255; continue; } const q=Math.max(1,Math.min(254,Math.round(32*Math.log2(k0/Math.sqrt(n))))); Q[v]=q; const cc=((vz>>2)*mc+(vy>>2))*mc+(vx>>2); if(q<CQ[cc]) CQ[cc]=q; } }
+      const i0=ST[j], i1=i0+CN[j], lo=mg, hi=m-mg-1;
+      for(let vz=lo;vz<=hi;vz++) for(let vy=lo;vy<=hi;vy++){ let v=(vz*m+vy)*m+lo; for(let vx=lo;vx<=hi;vx++,v++){ const q=Q[v]; if(!q||q===255) continue; let e=255;
+        for(let c2=-1;c2<=1;c2++) for(let c1=-1;c1<=1;c1++){ const o=(((vz>>2)+c2)*mc+(vy>>2)+c1)*mc+(vx>>2); if(CQ[o-1]<e) e=CQ[o-1]; if(CQ[o]<e) e=CQ[o]; if(CQ[o+1]<e) e=CQ[o+1]; }
+        if(q-e>TH) Q[v]=e; } }
+      for(let i=i0;i<i1;i++){ let vx=Math.floor((X[i*3]-x0)*ih), vy=Math.floor((X[i*3+1]-y0)*ih), vz=Math.floor((X[i*3+2]-z0)*ih);
+        if(vx<lo)vx=lo; else if(vx>hi)vx=hi; if(vy<lo)vy=lo; else if(vy>hi)vy=hi; if(vz<lo)vz=lo; else if(vz>hi)vz=hi; const q=Q[(vz*m+vy)*m+vx]; O[i]=q===255?0:q; } }
+    return {r:1}; },
   shuffle(S,a){ const X=S.X, C=S.C32, N=S.N, R=a.ranges; let s=(a.seed|0)||1;
     for(let r=0;r<R.length;r+=2){ const b=R[r], cnt=R[r+1];
       for(let i=cnt-1;i>0;i--){ s^=s<<13; s^=s>>>17; s^=s<<5; const j=(s>>>0)%(i+1); if(j===i) continue;
@@ -772,15 +842,15 @@ function loopSrc(H){
 /* ============ stav ============ */
 let D={n:0}, busy=false, nextOp=3, undo=[];
 const BGS=[[0.030,0.042,0.058,0.082,0.106,0.137],[0,0,0,0,0,0],[0.22,0.24,0.27,0.40,0.43,0.47],[0.70,0.73,0.77,0.90,0.92,0.94],[1,1,1,1,1,1]];   // pozadie: dolná a horná farba
-const ui={lit:0,edl:true,edlS:0.5,shS:0.8,smR:4,bri:1.3,bg:0,psW:true,psCm:2,mdl:false,mode:0,ps:1.5,budget:20e6,lasso:false,boxShow:true,boxClip:false,cv:7};
+const ui={lit:0,edl:true,edlS:0.5,shS:0.5,smR:1,bri:1.3,bg:0,psW:true,psD:true,psK:1.5,psCm:4,mdl:false,mode:0,ps:1,budget:20e6,lasso:false,boxShow:true,boxClip:false,cv:7};
 function setBusy(t){ busy=!!t; $("busy").textContent=t||""; $("busy").style.display=t?"block":"none"; }
 const tick=()=>new Promise((r)=>setTimeout(r,0));
 
 /* ============ načítanie ============ */
 function freeData(){
-  if(D.chunks) for(const ch of D.chunks){ gl.deleteBuffer(ch.bx); if(ch.bc) gl.deleteBuffer(ch.bc); gl.deleteBuffer(ch.bm); gl.deleteBuffer(ch.bk); if(ch.bn) gl.deleteBuffer(ch.bn); gl.deleteVertexArray(ch.vao); }
+  if(D.chunks) for(const ch of D.chunks){ gl.deleteBuffer(ch.bx); if(ch.bc) gl.deleteBuffer(ch.bc); gl.deleteBuffer(ch.bm); gl.deleteBuffer(ch.bk); if(ch.bn) gl.deleteBuffer(ch.bn); if(ch.bs) gl.deleteBuffer(ch.bs); gl.deleteVertexArray(ch.vao); }
   $("bCf").disabled=true; freeModel(); freeTraj(); freeAirTex();
-  if(pool) pool.close(); pool=null; MS=[]; D={n:0}; nextOp=3; undo=[];
+  if(pool) pool.close(); pool=null; MS=[]; D={n:0}; nextOp=3; undo=[]; secP=null; ui.secMode=false; DW.d=null; $("dw").hidden=true; ouUi();
 }
 async function openFile(file){
   if(busy||!file) return;
@@ -819,12 +889,13 @@ async function openFile(file){
     await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"scatter",{g,off:offs[i]},[offs[i].buffer])));
     const cells=[];
     for(let c=0;c<g.nc;c++){ if(!cnt[c]) continue; const ix_=c%nx, iy=Math.floor(c/nx)%ny, iz=Math.floor(c/(nx*ny));
-      const mn=[g.mn[0]+ix_*s,g.mn[1]+iy*s,g.mn[2]+iz*s]; cells.push({start:cst[c],cnt:cnt[c],mn,mx:[mn[0]+s,mn[1]+s,mn[2]+s],rel:0,vis:false}); }
+      const mn=[g.mn[0]+ix_*s,g.mn[1]+iy*s,g.mn[2]+iz*s]; cells.push({start:cst[c],cnt:cnt[c],mn,mx:[mn[0]+s,mn[1]+s,mn[2]+s],rel:0,vis:false,gi:c}); }
     D={file,name:file.name,n,org,bb,hasC,hasN,N:N16,nTxt:"",X,C32,C8:C32?new Uint8Array(C32.buffer):null,M,K:Kc,cls:[n,0,0],cols:null,cfText:"",cells,g,alive:n,sel:0,
        diag:Math.hypot(d[0],d[1],d[2]),fmt:H.fmt,stride:H.V.stride};
     const grp=Array.from({length:NW},()=>[]); let gi=0, acc=0;
     for(const c of cells){ grp[gi].push(c.start,c.cnt); acc+=c.cnt; if(gi<NW-1&&acc>=n*(gi+1)/NW) gi++; }
     await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"shuffle",{ranges:grp[i],seed:Math.imul(i+1,0x9E3779B1)})));
+    setBusy("Počítam hustotu okolia bodov…"); D.nnd=estSpacing(); await computeDens();
     T.push(performance.now());
 
     // grafická karta
@@ -842,13 +913,13 @@ async function openFile(file){
     const mem=n*(12+(hasC?4:0)+2+(hasN?2:0));
     for(const id of ["nShade","nCull"]){ $(id).disabled=!hasN; } $("nShade").checked=hasN; $("nCull").checked=false; $("nCullM").disabled=false; $("nCullM").checked=false;
     D.bp=[]; D.unr=null; D.sv=null; D.XU=null; ui.bpMode=false; bpChanged();
-    D.nnd=estSpacing(); ui.psCm=Math.min(10,Math.max(0.5,Math.round(D.nnd*5*200)/2)); $("psCm").value=ui.psCm; $("colMode").options[3].disabled=!hasN; setLit();
+    psDef(); $("colMode").options[3].disabled=!hasN; setLit();
     D.infoText=[`${file.name}`,`${H.fmt} · ${f1(file.size/G,2)} GiB · ${fN(n)} bodov · farba ${hasC?"áno":"nie"} · normály ${hasN?"áno":"nie"}`+((x)=>x.length?` · ďalšie údaje: ${x.join(", ")}`:"")(H.V.props.filter((q)=>![H.x,H.y,H.z,H.r,H.g,H.b,H.nx,H.ny,H.nz].includes(q)).map((q)=>q.name)),
       `lokálny počiatok: ${org.join(" ")}`,`rozmer: ${f1(d[0],2)} × ${f1(d[1],2)} × ${f1(d[2],2)} m`,
       `blokov: ${fN(cells.length)} (hrana ${f1(s,2)} m) · kúskov na karte: ${D.chunks.length} · najbližší sused ${f1(D.nnd*1000,1)} mm`,
       `čítanie ${f1((T[1]-T[0])/1000,2)} s · triedenie ${f1((T[2]-T[1])/1000,2)} s · karta ${f1((T[3]-T[2])/1000,2)} s`,
       `pamäť: ${f1(mem/G,2)} GiB · ${SHARED?NW+" vlákien":"bez izolácie — úpravy bežia v hlavnom vlákne (pomalšie)"}`].join("\n");
-    $("hint").style.display="none"; $("bExp").disabled=false; $("bCf").disabled=false; updInfo(); req();
+    $("hint").style.display="none"; $("bExp").disabled=false; $("bCf").disabled=false; ouUi(); updInfo(); req();
   }catch(err){
     console.error(err); freeData(); $("info").textContent="CHYBA: "+err.message; $("hint").style.display="";
   }finally{ setBusy(""); }
@@ -866,8 +937,8 @@ if(!gl){ $("hint").textContent="WebGL2 nie je k dispozícii."; throw new Error("
 const extCBF=gl.getExtension("EXT_color_buffer_float");
 const VS=(pick)=>`#version 300 es
 precision highp float; precision highp sampler3D;
-layout(location=0) in vec3 p; layout(location=1) in vec4 c; layout(location=2) in uint m; layout(location=3) in uint k; layout(location=4) in vec2 ne;
-uniform mat4 mvp; uniform float ps; uniform float sw; uniform float pmax; uniform int mode; uniform vec2 zr; uniform int bon; uniform vec3 bmn; uniform vec3 bmx; uniform int cv; uniform vec3 eye; uniform int lit;
+layout(location=0) in vec3 p; layout(location=1) in vec4 c; layout(location=2) in uint m; layout(location=3) in uint k; layout(location=4) in vec2 ne; layout(location=5) in float sp;
+uniform mat4 mvp; uniform float ps; uniform float sw; uniform float sk; uniform float pmax; uniform int mode; uniform vec2 zr; uniform int bon; uniform vec3 bmn; uniform vec3 bmx; uniform int cv; uniform vec3 eye; uniform int lit;
 uniform sampler3D airT; uniform sampler3D nearT; uniform vec3 a0; uniform vec3 ais; uniform vec3 nis; uniform float ah;
 out vec3 v; out float sz;
 vec3 octn(vec2 e){ vec3 n=vec3(e,1.0-abs(e.x)-abs(e.y)); float t=max(-n.z,0.0); n.x+=n.x>=0.0?-t:t; n.y+=n.y>=0.0?-t:t; return normalize(n); }
@@ -884,7 +955,7 @@ void main(){
       else if(k==2u&&vd.z<-0.05) hide=true;
       else hide=(lit&8)!=0&&fd<-0.3; } } }
   if(hide){ gl_Position=vec4(2.0,2.0,2.0,1.0); gl_PointSize=1.0; v=vec3(0.0); sz=1.0; return; }
-  gl_Position=mvp*vec4(p,1.0); sz=clamp(sw/gl_Position.w,ps,pmax); gl_PointSize=sz;
+  gl_Position=mvp*vec4(p,1.0); sz=clamp((sk>0.0?min(sk*exp2(sp/32.0),sw):sw)/gl_Position.w,ps,pmax); gl_PointSize=sz;
   ${pick?"v=p;":"vec3 cc=k==1u?vec3(0.32,0.62,1.0):k==2u?vec3(0.95,0.63,0.22):vec3(0.62); vec3 col=mode==0?c.rgb:mode==1?ramp((p.z-zr.x)/max(zr.y-zr.x,1e-6)):mode==2?cc*(0.35+0.65*dot(c.rgb,vec3(0.3,0.59,0.11))):mix(mix(vec3(0.55,0.75,0.5),vec3(0.95,0.63,0.22),clamp(nn.z,0.0,1.0)),vec3(0.32,0.62,1.0),clamp(-nn.z,0.0,1.0)); if((lit&1)!=0) col*=0.3+0.7*abs(fd); if(m==1u) col=mix(col,vec3(1.0,0.82,0.1),0.75); v=col;"}
 }`;
 const FS=`#version 300 es
@@ -896,7 +967,7 @@ function prog(vs,fs){ const p=gl.createProgram();
   for(const [t,s] of [[gl.VERTEX_SHADER,vs],[gl.FRAGMENT_SHADER,fs]]){ const o=gl.createShader(t); gl.shaderSource(o,s); gl.compileShader(o);
     if(!gl.getShaderParameter(o,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); gl.attachShader(p,o); }
   gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
-  const u={}; for(const nm of ["mvp","ps","sw","pmax","mode","zr","bon","bmn","bmx","col","cv","eye","lit","airT","nearT","a0","ais","nis","ah","tc","td","tl","px","nf","str","rad","dir","R","tn","sh","kn","bri","smc","bg0","bg1"]) u[nm]=gl.getUniformLocation(p,nm); return {p,u}; }
+  const u={}; for(const nm of ["mvp","ps","sw","sk","pmax","mode","zr","bon","bmn","bmx","col","cv","eye","lit","airT","nearT","a0","ais","nis","ah","tc","td","tl","px","nf","str","rad","dir","R","tn","sh","kn","bri","smc","bg0","bg1"]) u[nm]=gl.getUniformLocation(p,nm); return {p,u}; }
 const PP=prog(VS(false),FSP), PK=prog(VS(true),FSP);
 for(const P of [PP,PK]){ gl.useProgram(P.p); gl.uniform1i(P.u.airT,2); gl.uniform1i(P.u.nearT,3); }
 /* Zloženie obrazu v štyroch krokoch nad hĺbkou scény:
@@ -907,7 +978,7 @@ const VSQ=`#version 300 es
 out vec2 uv; void main(){ vec2 q=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2)); uv=q; gl_Position=vec4(q*2.0-1.0,0.0,1.0); }`;
 const P0=prog(VSQ,`#version 300 es
 precision highp float; uniform sampler2D tc; uniform highp sampler2D td; uniform vec2 px; uniform vec2 nf; uniform float rad; in vec2 uv; layout(location=0) out vec4 oc; layout(location=1) out vec4 ol;
-float lz(float d){ return log2(2.0*nf.x*nf.y/(nf.y+nf.x-(d*2.0-1.0)*(nf.y-nf.x))); }
+float lz(float d){ return 16.0+log2(2.0*nf.x*nf.y/(nf.y+nf.x-(d*2.0-1.0)*(nf.y-nf.x))); }
 void main(){ float d=texture(td,uv).r, l=d<1.0?lz(d):1e9, al=0.0; vec3 ac=vec3(0.0); int nn=0;
   for(int i=0;i<8;i++){ float a=float(i)*0.7853982; vec2 q=uv+vec2(cos(a),sin(a))*px*rad; float dn=texture(td,q).r; if(dn>=1.0) continue; float ln=lz(dn); if(l-ln>0.02){ nn++; ac+=texture(tc,q).rgb; al+=ln; } }
   if(nn>=6){ oc=vec4(ac/float(nn),1.0); ol=vec4(al/float(nn)); return; }
@@ -919,12 +990,12 @@ void main(){ float l=texture(tl,uv).r; if(l<0.0){ ol=vec4(l); return; } float s=
   for(int i=1;i<=R;i++){ float g=exp(-float(i*i)/(2.0*sg*sg)); for(int k=-1;k<=1;k+=2){ float ln=texture(tl,uv+dir*float(i*k)).r; if(ln<0.0) continue; float dl=(ln-l)/0.03, e=exp(-dl*dl), ww=g*e; s+=ln*ww; w+=ww; if(ln>l){ float wf=g*(1.0-e); so+=ln*wf; wo+=wf; } } }
   ol=vec4((w-1.0)<0.25*wo?so/wo:s/w); }`);   // osamelý bod pred plochou (podobne hlboko je menej než pätina okolia) dostane hĺbku okolia
 const PE=prog(VSQ,`#version 300 es
-precision highp float; uniform sampler2D tc; uniform highp sampler2D tl; uniform vec2 px; uniform vec2 tn; uniform float str; uniform float rad; uniform float sh; uniform float kn; uniform float bri; uniform int smc; uniform vec3 bg0; uniform vec3 bg1; in vec2 uv; out vec4 o;
-vec3 P(vec2 q,float l){ float z=exp2(l); return vec3((q*2.0-1.0)*tn*z,-z); }
+precision highp float; uniform sampler2D tc; uniform highp sampler2D tl; uniform vec2 px; uniform vec2 tn; uniform float str; uniform float rad; uniform float sh; uniform float kn; uniform float bri; uniform float smc; uniform vec3 bg0; uniform vec3 bg1; in vec2 uv; out vec4 o;
+vec3 P(vec2 q,float l){ float z=exp2(l-16.0); return vec3((q*2.0-1.0)*tn*z,-z); }
 void main(){ float l=texture(tl,uv).r; if(l<0.0){ o=vec4(mix(bg0,bg1,uv.y),1.0); return; }
   float s=0.0; for(int i=0;i<8;i++){ float a=float(i)*0.7853982, ln=texture(tl,uv+vec2(cos(a),sin(a))*px*rad).r; if(ln>=0.0) s+=clamp(l-ln,0.0,0.06); }
   vec3 c=texture(tc,uv).rgb;
-  if(smc>0){ float w=1.0; for(int j=-1;j<=1;j++) for(int i=-1;i<=1;i++){ if(i==0&&j==0) continue; vec2 q=uv+vec2(float(i),float(j))*px; float ln=texture(tl,q).r; if(ln<0.0) continue; float dl=(ln-l)/0.03, ww=exp(-dl*dl)*0.7; c+=texture(tc,q).rgb*ww; w+=ww; } c/=w; }
+  if(smc>0.0){ float w=1.0; for(int j=-1;j<=1;j++) for(int i=-1;i<=1;i++){ if(i==0&&j==0) continue; vec2 q=uv+vec2(float(i),float(j))*px; float ln=texture(tl,q).r; if(ln<0.0) continue; float dl=(ln-l)/0.03, ww=exp(-dl*dl)*smc; c+=texture(tc,q).rgb*ww; w+=ww; } c/=w; }
   float f=str>0.0?exp(-s*37.5*str):1.0;
   if(sh>0.0){ vec2 dx=vec2(px.x*kn,0.0), dy=vec2(0.0,px.y*kn); float lr=texture(tl,uv+dx).r, ll=texture(tl,uv-dx).r, lu=texture(tl,uv+dy).r, ld=texture(tl,uv-dy).r; vec3 p0=P(uv,l);
     vec3 ex=(lr>=0.0&&(ll<0.0||abs(lr-l)<abs(l-ll)))?P(uv+dx,lr)-p0:(ll>=0.0?p0-P(uv-dx,ll):vec3(1.0,0.0,0.0));
@@ -976,6 +1047,7 @@ function makeChunk(ch){
   ch.bm=upload(D.M,ch.start,ch.cnt); gl.enableVertexAttribArray(2); gl.vertexAttribIPointer(2,1,gl.UNSIGNED_BYTE,0,0);
   ch.bk=upload(D.K,ch.start,ch.cnt); gl.enableVertexAttribArray(3); gl.vertexAttribIPointer(3,1,gl.UNSIGNED_BYTE,0,0);
   if(D.N){ ch.bn=upload(D.N,ch.start,ch.cnt); gl.enableVertexAttribArray(4); gl.vertexAttribPointer(4,2,gl.BYTE,true,0,0); }
+  if(D.S){ ch.bs=upload(D.S,ch.start,ch.cnt); gl.enableVertexAttribArray(5); gl.vertexAttribPointer(5,1,gl.UNSIGNED_BYTE,false,0,0); }
   gl.bindVertexArray(null);
 }
 function uploadNormals(){ if(D.N) for(const ch of D.chunks) upload(D.N,ch.start,ch.cnt,ch.bn); }
@@ -1022,7 +1094,8 @@ function boxLocal(){ const o=dorg(), b=[0,1,2,3,4,5].map((i)=>+$("b"+i).value-o[
 function setUniforms(P,m,f){ const dpr=window.devicePixelRatio||1, fs=Math.min(2,1/Math.sqrt(f||1)), A=(ui.lit&4)&&!unrOn()?D.airTex:null;
   gl.useProgram(P.p); gl.uniformMatrix4fv(P.u.mvp,false,new Float32Array(m)); gl.uniform1f(P.u.ps,ui.ps*dpr*fs); gl.uniform1i(P.u.mode,ui.mode);
   // veľkosť bodu v priestore: cm → pixely vo vzdialenosti 1 m; pri preriedení počas pohybu sa body zväčšia, aby nevznikali diery
-  gl.uniform1f(P.u.sw,ui.psW?ui.psCm/100*cv.height/(2*Math.tan(cam.fov/2))*fs:0); gl.uniform1f(P.u.pmax,Math.min(PMAX_PX,Math.max(ui.ps,24)*dpr));
+  // podľa hustoty: veľkosť = výplň × rozostup bodov v okolí (najviac psCm); inak všade psCm
+  const F1=cv.height/(2*Math.tan(cam.fov/2))*fs; gl.uniform1f(P.u.sw,ui.psW?ui.psCm/100*F1:0); gl.uniform1f(P.u.sk,ui.psW&&ui.psD&&D.S?ui.psK*0.001*F1:0); gl.uniform1f(P.u.pmax,Math.min(PMAX_PX,Math.max(ui.ps,24)*dpr));
   if(A){ gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_3D,A.t); gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_3D,A.n); gl.activeTexture(gl.TEXTURE0);
     gl.uniform3f(P.u.a0,A.a0[0],A.a0[1],A.a0[2]); gl.uniform3f(P.u.ais,A.ais[0],A.ais[1],A.ais[2]); gl.uniform3f(P.u.nis,A.nis[0],A.nis[1],A.nis[2]); gl.uniform1f(P.u.ah,A.ah); }
   gl.uniform2f(P.u.zr,D.bb[2],D.bb[5]); gl.uniform1i(P.u.bon,ui.boxClip?1:0); gl.uniform1i(P.u.cv,ui.cv);
@@ -1048,7 +1121,7 @@ function render(mv){
       gl.bindFramebuffer(gl.FRAMEBUFFER,F.f3); bind(0,F.l2); gl.uniform2f(PB.u.dir,0,1/h); quad(); }
     gl.bindFramebuffer(gl.FRAMEBUFFER,null); gl.useProgram(PE.p); bind(1,F.l1); bind(0,F.c1); const ty=Math.tan(cam.fov/2), B=BGS[ui.bg]||BGS[0];
     gl.uniform2f(PE.u.px,1/w,1/h); gl.uniform2f(PE.u.tn,ty*w/h,ty); gl.uniform1f(PE.u.str,ui.edl?ui.edlS:0); gl.uniform1f(PE.u.rad,Math.max(1.4*dpr,R*0.6)); gl.uniform1f(PE.u.sh,ui.shS); gl.uniform1f(PE.u.kn,Math.max(1,R*0.5));
-    gl.uniform1f(PE.u.bri,ui.bri); gl.uniform1i(PE.u.smc,R>0?1:0); gl.uniform3f(PE.u.bg0,B[0],B[1],B[2]); gl.uniform3f(PE.u.bg1,B[3],B[4],B[5]);
+    gl.uniform1f(PE.u.bri,ui.bri); gl.uniform1f(PE.u.smc,ui.smR>0?Math.min(0.7,0.1+0.2*ui.smR):0); gl.uniform3f(PE.u.bg0,B[0],B[1],B[2]); gl.uniform3f(PE.u.bg1,B[3],B[4],B[5]);
     quad(); bind(1,null); bind(0,null); gl.enable(gl.DEPTH_TEST); };
   if(!D.n){ compose(); $("bar").textContent=""; drawOverlay(null); return; }
   const m=mvpNow(), V=cullCells(m), f=mv?Math.min(1,ui.budget/Math.max(1,V)):1;
@@ -1081,6 +1154,12 @@ function drawOverlay(m){
     for(const [lw,col] of [[4.5,"rgba(0,0,0,0.55)"],[2,"#ff4db8"]]){ octx.lineWidth=lw; octx.strokeStyle=col; octx.beginPath(); let pen=false; for(const q of S){ if(!q){ pen=false; continue; } if(pen) octx.lineTo(q[0],q[1]); else octx.moveTo(q[0],q[1]); pen=true; } octx.stroke(); }
     octx.font="11px sans-serif"; S.forEach((q,i)=>{ if(!q) return; octx.beginPath(); octx.arc(q[0],q[1],4.5,0,Math.PI*2); octx.fillStyle="#ff4db8"; octx.fill(); octx.lineWidth=1.5; octx.strokeStyle="#000"; octx.stroke();
       octx.fillStyle="#000"; octx.fillText(i+1,q[0]+8,q[1]-5); octx.fillStyle="#fff"; octx.fillText(i+1,q[0]+7,q[1]-6); }); }
+  // úsečka priečneho rezu A – B
+  if(m&&(secP||(D.sec&&D.sec.on===unrOn()))){ const prj=(p)=>{ const w=m[3]*p[0]+m[7]*p[1]+m[11]*p[2]+m[15]; return w>1e-6?[((m[0]*p[0]+m[4]*p[1]+m[8]*p[2]+m[12])/w+1)/2*ov.width,(1-(m[1]*p[0]+m[5]*p[1]+m[9]*p[2]+m[13])/w)/2*ov.height]:null; };
+    const a=prj(secP||D.sec.A), b=secP?null:prj(D.sec.B); octx.font="bold 12px sans-serif";
+    if(a&&b) for(const [lw,col] of [[4.5,"rgba(0,0,0,0.55)"],[2,"#35d0ff"]]){ octx.lineWidth=lw; octx.strokeStyle=col; octx.beginPath(); octx.moveTo(a[0],a[1]); octx.lineTo(b[0],b[1]); octx.stroke(); }
+    for(const [q,t] of [[a,"A"],[b,"B"]]){ if(!q) continue; octx.beginPath(); octx.arc(q[0],q[1],4.5,0,Math.PI*2); octx.fillStyle="#35d0ff"; octx.fill(); octx.lineWidth=1.5; octx.strokeStyle="#000"; octx.stroke();
+      octx.fillStyle="#000"; octx.fillText(t,q[0]+8,q[1]-5); octx.fillStyle="#fff"; octx.fillText(t,q[0]+7,q[1]-6); } }
   if(lassoPts&&lassoPts.length>=2){
     octx.beginPath(); octx.moveTo(lassoPts[0][0],lassoPts[0][1]); for(const p of lassoPts) octx.lineTo(p[0],p[1]); octx.closePath();
     octx.fillStyle="rgba(232,178,58,0.12)"; octx.fill(); octx.strokeStyle="#e8b23a"; octx.lineWidth=1.5; octx.setLineDash([5,4]); octx.stroke(); octx.setLineDash([]); }
@@ -1109,7 +1188,7 @@ function pick(cx,cy){
 }
 
 /* ============ myš a klávesnica ============ */
-let drag=null, lassoPts=null;
+let drag=null, lassoPts=null, secP=null;
 ov.addEventListener("contextmenu",(e)=>e.preventDefault());
 ov.addEventListener("mousedown",(e)=>{ if(e.button===1) e.preventDefault(); });
 ov.addEventListener("auxclick",(e)=>{ if(e.button===1) e.preventDefault(); });
@@ -1130,7 +1209,8 @@ ov.addEventListener("pointermove",(e)=>{
 ov.addEventListener("pointerup",(e)=>{
   if(!drag) return; const d=drag; drag=null; ov.style.cursor="";
   if(d.k==="lasso"){ const pts=lassoPts; lassoPts=null; drawLassoPath(); if(pts&&pts.length>=3) lassoApply(pts,d.mode); }
-  else if(ui.bpMode&&!unrOn()&&!busy&&d.k==="orbit"&&d.b===0&&Math.hypot(e.clientX-d.sx,e.clientY-d.sy)<4){ const q=pick(e.offsetX,e.offsetY); if(q) bpAdd([q[0],q[1],q[2]]); }
+  else if((ui.secMode||(ui.bpMode&&!unrOn()))&&!busy&&d.k==="orbit"&&d.b===0&&Math.hypot(e.clientX-d.sx,e.clientY-d.sy)<4){ const q=pick(e.offsetX,e.offsetY);
+    if(!q) flash("pod kurzorom nie je bod"); else if(ui.secMode) secClick([q[0],q[1],q[2]]); else bpAdd([q[0],q[1],q[2]]); }
 });
 ov.addEventListener("wheel",(e)=>{
   if(!D.n) return; e.preventDefault();
@@ -1191,7 +1271,7 @@ window.addEventListener("keydown",(e)=>{
   if(k==="l") setLasso(!ui.lasso);
   else if(k==="delete"){ e.preventDefault(); act("del"); }
   else if(k==="i") act("inv");
-  else if(k==="escape"){ if(ui.lasso) setLasso(false); else act("clr"); }
+  else if(k==="escape"){ if(ui.secMode){ ui.secMode=false; secP=null; ouUi(); req(); } else if(ui.lasso) setLasso(false); else act("clr"); }
   else if(k==="f") view("fit");
   else if(k==="t") view("top");
 });
@@ -1381,6 +1461,13 @@ function buildBlanaVis(L){
 /* Vzduch hrubého modelu ako 3D textúra (podiel vzduchu 0–255, vyhladený) + hrubá maska „do ~1 m je vzduch“.
    Vzduch modelu je o „zacelenie“ voxelov užší než dutina, preto sa najprv o toľko rozšíri – siaha potom po stenu. */
 /* Typický rozostup bodov: medián vzdialenosti k najbližšiemu susedovi na vzorke (v bloku, body sú v ňom premiešané, stačí prvých 20 tisíc a prepočet hustotou) */
+// rozostup bodov v okolí každého bodu → D.S (bajt na bod), podľa neho sa pri kreslení volí veľkosť bodu
+async function computeDens(){ const g=D.g, C=D.cells, m=C.length, h=Math.min(g.s/9,Math.max(Math.min(0.2,Math.max(0.03,8*D.nnd)),g.s/100));
+  const CI=new Int32Array(alloc(g.nc*4)).fill(-1), ST=new Float64Array(m), CN=new Uint32Array(m), GC=new Int32Array(m), cut=[0]; let acc=0, w=1;
+  C.forEach((c,j)=>{ CI[c.gi]=j; ST[j]=c.start; CN[j]=c.cnt; GC[j]=c.gi; acc+=c.cnt; if(w<NW&&acc>=D.n*w/NW){ cut.push(j+1); w++; } }); while(cut.length<=NW) cut.push(m);
+  if(!D.S) D.S=new Uint8Array(alloc(D.n));
+  await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"dens",{S:D.S.buffer,CI:CI.buffer,ST,CN,GC,g,h,a:cut[i],b:cut[i+1]}))); D.densH=h; }
+function psDef(){ ui.psCm=ui.psD?4:Math.min(10,Math.max(0.5,Math.round(D.nnd*5*200)/2)); $("psCm").value=ui.psCm; }
 function estSpacing(){ const X=D.X, C=D.cells.filter((c)=>c.cnt>200), ds=[]; if(!C.length) return 0.005;
   for(let s=0;s<300;s++){ const c=C[Math.floor((s+0.5)*C.length/300)], m=Math.min(c.cnt,20000), i=c.start+(s*7919)%m, x=X[i*3], y=X[i*3+1], z=X[i*3+2]; let b=1e30;
     for(let j=c.start,e=c.start+m;j<e;j++){ if(j===i) continue; const dx=X[j*3]-x, dy=X[j*3+1]-y, dz=X[j*3+2]-z, d=dx*dx+dy*dy+dz*dz; if(d<b) b=d; }
@@ -1606,7 +1693,7 @@ function unrollOff(){ if(!unrOn()) return; for(const c of D.cells){ c.mn=c.mn0; 
 // rez osou: polovica pásu a pohľad na ňu z osi
 function unrHalf(side){ if(!unrOn()) return; const W=D.unr.W; boxReset(); if(side){ $("b1").value=(side>0?0:-W).toFixed(2); $("b4").value=(side>0?W:0).toFixed(2); }
   $("boxClip").checked=!!side; ui.boxClip=!!side; view("fit"); cam.yaw=side<0?Math.PI/2:-Math.PI/2; cam.pitch=0; req(); }
-$("bBp").addEventListener("click",()=>{ ui.bpMode=!ui.bpMode; bpUi(); flash(ui.bpMode?"klik na mračno pridá lomový bod":"pridávanie lomových bodov vypnuté"); });
+$("bBp").addEventListener("click",()=>{ ui.bpMode=!ui.bpMode; if(ui.bpMode){ ui.secMode=false; secP=null; ouUi(); } bpUi(); flash(ui.bpMode?"klik na mračno pridá lomový bod":"pridávanie lomových bodov vypnuté"); });
 $("bBpT").addEventListener("click",bpFromTraj); $("bBpU").addEventListener("click",()=>{ D.bp.pop(); bpChanged(); }); $("bBpC").addEventListener("click",()=>{ D.bp=[]; bpChanged(); });
 $("bpTxt").addEventListener("change",bpFromText);
 $("bUnr").addEventListener("click",()=>{ if(unrOn()) unrollOff(); else unroll(); });
@@ -1641,6 +1728,201 @@ async function exportPly(){
   finally{ setBusy(""); }
 }
 
+/* ============ obrys a priečne rezy ============ */
+// ---- raster: vzdialenosť, zacelenie, súvislé časti, hranica ----
+// vzdialenosť (3 za krok rovno, 4 šikmo, teda v tretinách bunky) k najbližšej nenulovej bunke; inv: k najbližšej nulovej
+function rDist(M,nx,ny,inv){ const n=nx*ny, T=new Uint16Array(n), BIG=60000;
+  for(let i=0;i<n;i++) T[i]=((M[i]!==0)!==!!inv)?0:BIG;
+  for(let y=0;y<ny;y++) for(let x=0,i=y*nx;x<nx;x++,i++){ let d=T[i]; if(!d) continue;
+    if(x>0&&T[i-1]+3<d) d=T[i-1]+3; if(y>0){ if(T[i-nx]+3<d) d=T[i-nx]+3; if(x>0&&T[i-nx-1]+4<d) d=T[i-nx-1]+4; if(x<nx-1&&T[i-nx+1]+4<d) d=T[i-nx+1]+4; } T[i]=d; }
+  for(let y=ny-1;y>=0;y--) for(let x=nx-1,i=y*nx+nx-1;x>=0;x--,i--){ let d=T[i]; if(!d) continue;
+    if(x<nx-1&&T[i+1]+3<d) d=T[i+1]+3; if(y<ny-1){ if(T[i+nx]+3<d) d=T[i+nx]+3; if(x<nx-1&&T[i+nx+1]+4<d) d=T[i+nx+1]+4; if(x>0&&T[i+nx-1]+4<d) d=T[i+nx-1]+4; } T[i]=d; }
+  return T; }
+function rDil(M,nx,ny,r){ if(r<=0) return M.slice(); const T=rDist(M,nx,ny,false), O=new Uint8Array(nx*ny), t=3*r; for(let i=0;i<O.length;i++) O[i]=T[i]<=t?1:0; return O; }
+function rEro(M,nx,ny,r){ if(r<=0) return M.slice(); const T=rDist(M,nx,ny,true), O=new Uint8Array(nx*ny), t=3*r; for(let i=0;i<O.length;i++) O[i]=T[i]>t?1:0; return O; }
+// súvislé časti (cez hrany buniek) nenulových (v=true) alebo nulových buniek; fn(indexy, počet, dotýka sa okraja rastra)
+function rComp(M,nx,ny,v,fn){ const n=nx*ny, L=new Uint8Array(n), Q=new Int32Array(n);
+  for(let s=0;s<n;s++){ if(L[s]||(M[s]!==0)!==v) continue; let h=0, t=0, edge=false; Q[t++]=s; L[s]=1;
+    while(h<t){ const i=Q[h++], x=i%nx, y=(i-x)/nx; if(x===0||y===0||x===nx-1||y===ny-1) edge=true;
+      if(x>0&&!L[i-1]&&(M[i-1]!==0)===v){ L[i-1]=1; Q[t++]=i-1; } if(x<nx-1&&!L[i+1]&&(M[i+1]!==0)===v){ L[i+1]=1; Q[t++]=i+1; }
+      if(y>0&&!L[i-nx]&&(M[i-nx]!==0)===v){ L[i-nx]=1; Q[t++]=i-nx; } if(y<ny-1&&!L[i+nx]&&(M[i+nx]!==0)===v){ L[i+nx]=1; Q[t++]=i+nx; } }
+    fn(Q,t,edge); } }
+// hranica masky (0/1) → uzavreté čiary v jednotkách buniek (stred bunky i má súradnicu i+0,5). Maska sa vyhladí 3×3 a hranica sa vedie v polovici (pochodujúce štvorce),
+// takže nie je zubatá. Vnútro je vľavo od smeru čiary: vonkajší obrys ide proti smeru hodín (kladná plocha), diera v smere hodín.
+function rContours(M0,nx,ny){ const n=nx*ny, M=M0.slice(), T=new Uint8Array(n), B=new Uint8Array(n);
+  for(let x=0;x<nx;x++){ M[x]=0; M[(ny-1)*nx+x]=0; } for(let y=0;y<ny;y++){ M[y*nx]=0; M[y*nx+nx-1]=0; }
+  for(let y=0;y<ny;y++) for(let x=0,i=y*nx;x<nx;x++,i++) T[i]=(x>0?M[i-1]:0)+M[i]+(x<nx-1?M[i+1]:0);
+  for(let y=0;y<ny;y++) for(let x=0,i=y*nx;x<nx;x++,i++) B[i]=(y>0?T[i-nx]:0)+T[i]+(y<ny-1?T[i+nx]:0);
+  const NH=n, nxt=new Map(), pos=new Map(), iso=4.5;
+  for(let j=0;j<ny-1;j++) for(let i=0;i<nx-1;i++){ const o=j*nx+i, a=B[o], b=B[o+1], c=B[o+nx+1], d=B[o+nx], k=(a>iso?1:0)|(b>iso?2:0)|(c>iso?4:0)|(d>iso?8:0); if(k===0||k===15) continue;
+    const eB=o, eT=o+nx, eL=NH+o, eR=NH+o+1, S=(e0,e1)=>{ nxt.set(e0,e1); pos.set(e0,e0===eB?[i+(iso-a)/(b-a),j]:e0===eT?[i+(iso-d)/(c-d),j+1]:e0===eL?[i,j+(iso-a)/(d-a)]:[i+1,j+(iso-b)/(c-b)]); };
+    switch(k){ case 1: S(eB,eL); break; case 2: S(eR,eB); break; case 4: S(eT,eR); break; case 8: S(eL,eT); break; case 3: S(eR,eL); break; case 6: S(eT,eB); break; case 12: S(eL,eR); break; case 9: S(eB,eT); break;
+      case 14: S(eL,eB); break; case 13: S(eB,eR); break; case 11: S(eR,eT); break; case 7: S(eT,eL); break;
+      case 5: if(a+b+c+d>4*iso){ S(eB,eR); S(eT,eL); } else { S(eB,eL); S(eT,eR); } break;
+      case 10: if(a+b+c+d>4*iso){ S(eL,eB); S(eR,eT); } else { S(eR,eB); S(eL,eT); } break; } }
+  const loops=[];
+  for(const s0 of Array.from(nxt.keys())){ if(!nxt.has(s0)) continue; const P=[]; let e=s0;
+    while(nxt.has(e)){ const p=pos.get(e); P.push(p[0]+0.5,p[1]+0.5); const q=nxt.get(e); nxt.delete(e); e=q; if(e===s0) break; }
+    if(P.length>=6) loops.push(P); }
+  return loops; }
+// zjednodušenie lomenej čiary (Douglas–Peucker); P = [x0,y0,x1,y1,…]
+function dpSimp(P,closed,tol){ const n=P.length/2; if(n<4||tol<=0) return P; const keep=new Uint8Array(n), X=(i)=>P[2*(i%n)], Y=(i)=>P[2*(i%n)+1]; let st;
+  if(closed){ let far=0, fd=-1; for(let i=1;i<n;i++){ const d=(P[2*i]-P[0])**2+(P[2*i+1]-P[1])**2; if(d>fd){ fd=d; far=i; } } keep[0]=keep[far]=1; st=[[0,far],[far,n]]; }
+  else { keep[0]=keep[n-1]=1; st=[[0,n-1]]; }
+  while(st.length){ const [a,b]=st.pop(); if(b-a<2) continue; const ax=X(a), ay=Y(a), bx=X(b)-ax, by=Y(b)-ay, L2=bx*bx+by*by||1e-30; let mx=0, mi=-1;
+    for(let i=a+1;i<b;i++){ const px=X(i)-ax, py=Y(i)-ay, t=Math.max(0,Math.min(1,(px*bx+py*by)/L2)), d=(px-t*bx)**2+(py-t*by)**2; if(d>mx){ mx=d; mi=i; } }
+    if(mx>tol*tol){ keep[mi%n]=1; st.push([a,mi],[mi,b]); } }
+  const O=[]; for(let i=0;i<n;i++) if(keep[i]) O.push(P[2*i],P[2*i+1]); return O; }
+// jadro pásu bodov (priečny rez): bunka ostáva, ak má s okolím 3×3 aspoň minS bodov a aspoň frac najväčšieho takého počtu do rad buniek od nej.
+// Okraj pásu – šum a rozmazanie šikmej steny hrúbkou plátu – odpadne a hranica sa vedie pri strede pásu.
+function rCore(Cn,nx,ny,rad,frac,minS){ const n=nx*ny, T=new Uint16Array(n), S=new Uint16Array(n), LM=new Uint16Array(n), M=new Uint8Array(n);
+  for(let y=0;y<ny;y++) for(let x=0,i=y*nx;x<nx;x++,i++) T[i]=(x>0?Cn[i-1]:0)+Cn[i]+(x<nx-1?Cn[i+1]:0);
+  for(let y=0;y<ny;y++) for(let x=0,i=y*nx;x<nx;x++,i++) S[i]=(y>0?T[i-nx]:0)+T[i]+(y<ny-1?T[i+nx]:0);
+  for(let y=0;y<ny;y++) for(let x=0,i=y*nx;x<nx;x++,i++){ let m=0; for(let k=Math.max(0,x-rad),e=Math.min(nx-1,x+rad);k<=e;k++){ const v=S[y*nx+k]; if(v>m) m=v; } T[i]=m; }
+  for(let y=0;y<ny;y++) for(let x=0,i=y*nx;x<nx;x++,i++){ let m=0; for(let k=Math.max(0,y-rad),e=Math.min(ny-1,y+rad);k<=e;k++){ const v=T[k*nx+x]; if(v>m) m=v; } LM[i]=m; }
+  for(let i=0;i<n;i++) M[i]=Cn[i]&&S[i]>=minS&&S[i]>=frac*LM[i]?1:0; return M; }
+// maska → čiary v metroch. cut=[lo,hi] (v bunkách): vrcholy mimo tohto rozsahu u sa vynechajú a čiara sa tam otvorí (otvorený koniec priečneho rezu).
+function rLines(M,nx,ny,u0,v0,px,tol,cut){ const out=[];
+  for(const P of rContours(M,nx,ny)){ const n=P.length/2; let A=0; for(let i=0;i<n;i++){ const j=(i+1)%n; A+=P[2*i]*P[2*j+1]-P[2*j]*P[2*i+1]; }
+    const push=(Q,closed)=>{ const q=Q.length/2; if(q>=5) for(let it=0;it<2;it++){ const Z=Q.slice(); for(let i=closed?0:1;i<(closed?q:q-1);i++){ const a=(i+q-1)%q, b=(i+1)%q; Z[2*i]=(Q[2*a]+2*Q[2*i]+Q[2*b])/4; Z[2*i+1]=(Q[2*a+1]+2*Q[2*i+1]+Q[2*b+1])/4; } Q=Z; }
+      const S=dpSimp(Q,closed,tol/px), m=S.length/2; if(m<(closed?3:2)) return; let len=0; const R=[];
+      for(let i=0;i<m;i++){ R.push([u0+S[2*i]*px,v0+S[2*i+1]*px]); if(i||closed){ const j=(i+m-1)%m; len+=Math.hypot(S[2*i]-S[2*j],S[2*i+1]-S[2*j+1]); } }
+      out.push({P:R,closed,hole:A<0,area:closed?A/2*px*px:0,len:len*px}); };
+    const bad=(i)=>cut&&(P[2*i]<cut[0]||P[2*i]>cut[1]); let fb=-1; if(cut) for(let i=0;i<n;i++) if(bad(i)){ fb=i; break; }
+    if(fb<0){ push(P,true); continue; }
+    let run=[]; for(let k=1;k<=n;k++){ const i=(fb+k)%n; if(bad(i)){ if(run.length>=4) push(run,false); run=[]; } else run.push(P[2*i],P[2*i+1]); } }
+  return out; }
+// raster počtov → obrázok (priehľadnosť podľa počtu bodov v bunke)
+function rImage(R,nx,ny,rgb){ const c=document.createElement("canvas"); c.width=nx; c.height=ny; const x=c.getContext("2d"), I=x.createImageData(nx,ny), d=I.data;
+  for(let j=0;j<ny;j++) for(let i=0,o=(ny-1-j)*nx*4,q=j*nx;i<nx;i++,o+=4,q++){ const v=R[q]; if(!v) continue; d[o]=rgb[0]; d[o+1]=rgb[1]; d[o+2]=rgb[2]; d[o+3]=Math.min(255,70+Math.round(34*Math.log2(1+v))); }
+  x.putImageData(I,0,0); return c; }
+
+// ---- okno výkresu: raster alebo body, čiary, mriežka; posun ťahaním, koliesko približuje, dvojklik zobrazí celé ----
+const DW={d:null,s:1,ox:0,oy:0,drag:null};
+function dwSize(){ const c=$("dwC"), dpr=window.devicePixelRatio||1, w=Math.max(1,Math.round(c.clientWidth*dpr)), h=Math.max(1,Math.round(c.clientHeight*dpr)); if(c.width!==w||c.height!==h){ c.width=w; c.height=h; } }
+function dwFit(){ const d=DW.d; if(!d) return; dwSize(); const c=$("dwC"), bw=Math.max(d.bb[2]-d.bb[0],1e-3), bh=Math.max(d.bb[3]-d.bb[1],1e-3);
+  DW.s=0.86*Math.min(c.width/bw,c.height/bh); DW.ox=c.width/2-(d.bb[0]+bw/2)*DW.s; DW.oy=c.height/2+(d.bb[1]+bh/2)*DW.s; }
+function dwShow(d){ DW.d=d; d.img=d.R?rImage(d.R,d.nx,d.ny,[205,214,224]):null; $("dw").hidden=false; $("dwT").textContent=d.title; $("dwI").textContent=d.info; $("dwTh2").disabled=!d.lines.length; $("dwDxf").disabled=!d.lines.length; dwFit(); dwDraw(); }
+function niceStep(v){ const e=Math.pow(10,Math.floor(Math.log10(v))), m=v/e; return (m<=1?1:m<=2?2:m<=5?5:10)*e; }
+function dwDraw(){ const d=DW.d; if(!d||$("dw").hidden) return; dwSize(); const c=$("dwC"), x=c.getContext("2d"), dpr=window.devicePixelRatio||1, s=DW.s, ox=DW.ox, oy=DW.oy, W=c.width, H=c.height;
+  x.setTransform(1,0,0,1,0,0); x.fillStyle="#0b0f14"; x.fillRect(0,0,W,H);
+  // mriežka s popisom v súradniciach výkresu
+  const st=niceStep(90*dpr/s), dec=st<1?(st<0.1?2:1):0, uA=-ox/s, uB=(W-ox)/s, vA=(oy-H)/s, vB=oy/s; x.font=`${11*dpr}px sans-serif`; x.lineWidth=1;
+  x.strokeStyle="rgba(255,255,255,0.07)"; x.fillStyle="#7f8d9d"; x.beginPath();
+  for(let u=Math.ceil((uA+d.uo)/st)*st;u<=uB+d.uo;u+=st){ const X=Math.round(ox+(u-d.uo)*s)+0.5; x.moveTo(X,0); x.lineTo(X,H); x.fillText(u.toFixed(dec),X+3*dpr,H-5*dpr); }
+  for(let v=Math.ceil((vA+d.vo)/st)*st;v<=vB+d.vo;v+=st){ const Y=Math.round(oy-(v-d.vo)*s)+0.5; x.moveTo(0,Y); x.lineTo(W,Y); x.fillText(v.toFixed(dec),4*dpr,Y-3*dpr); }
+  x.stroke();
+  if($("dwP").checked){
+    if(d.pts){ const U=d.pts.U, K=d.pts.C, n=K.length, sk=Math.max(1,Math.ceil(n/400000)), ps=Math.max(1,Math.round(Math.min(3,s*0.006)*dpr)), col=["#c9d1da","#58a6ff","#f0a23c"];
+      for(let k=0;k<3;k++){ x.fillStyle=col[k]; for(let i=0;i<n;i+=sk){ if(K[i]!==k) continue; const X=ox+U[2*i]*s, Y=oy-U[2*i+1]*s; if(X<0||Y<0||X>W||Y>H) continue; x.fillRect(X,Y,ps,ps); } } }
+    else if(d.img){ x.imageSmoothingEnabled=s*d.px<1; x.drawImage(d.img,ox+d.u0*s,oy-(d.v0+d.ny*d.px)*s,d.nx*d.px*s,d.ny*d.px*s); } }
+  x.lineJoin="round";
+  for(const l of d.lines){ x.beginPath(); l.P.forEach((p,i)=>{ const X=ox+p[0]*s, Y=oy-p[1]*s; if(i) x.lineTo(X,Y); else x.moveTo(X,Y); }); if(l.closed) x.closePath(); x.lineWidth=(l.hole?1.3:1.9)*dpr; x.strokeStyle=l.hole?"#ff8f6b":"#ffc933"; x.stroke(); }
+  if(d.ends){ x.font=`bold ${13*dpr}px sans-serif`; x.fillStyle="#35d0ff"; x.fillText(d.ends[0],ox+d.bb[0]*s-4*dpr,oy-d.bb[3]*s-8*dpr); x.fillText(d.ends[1],ox+d.bb[2]*s-4*dpr,oy-d.bb[3]*s-8*dpr); }
+  // mierka
+  const ml=niceStep(120*dpr/s), X0=W-16*dpr-ml*s, Y0=H-26*dpr; x.strokeStyle="#e2e8ef"; x.fillStyle="#e2e8ef"; x.lineWidth=2*dpr; x.beginPath(); x.moveTo(X0,Y0-5*dpr); x.lineTo(X0,Y0); x.lineTo(X0+ml*s,Y0); x.lineTo(X0+ml*s,Y0-5*dpr); x.stroke();
+  x.font=`${12*dpr}px sans-serif`; x.fillText((ml>=1?ml:ml*100)+(ml>=1?" m":" cm"),X0+4*dpr,Y0-7*dpr); }
+{ const c=$("dwC");
+  c.addEventListener("wheel",(e)=>{ e.preventDefault(); if(!DW.d) return; const dpr=window.devicePixelRatio||1, mx=e.offsetX*dpr, my=e.offsetY*dpr, k=Math.pow(1.0015,-(e.deltaMode===1?e.deltaY*33:e.deltaY)); DW.ox=mx-(mx-DW.ox)*k; DW.oy=my-(my-DW.oy)*k; DW.s*=k; dwDraw(); },{passive:false});
+  c.addEventListener("pointerdown",(e)=>{ c.setPointerCapture(e.pointerId); DW.drag=[e.clientX,e.clientY]; });
+  c.addEventListener("pointermove",(e)=>{ if(!DW.drag) return; const dpr=window.devicePixelRatio||1; DW.ox+=(e.clientX-DW.drag[0])*dpr; DW.oy+=(e.clientY-DW.drag[1])*dpr; DW.drag=[e.clientX,e.clientY]; dwDraw(); });
+  c.addEventListener("pointerup",()=>{ DW.drag=null; }); c.addEventListener("dblclick",()=>{ dwFit(); dwDraw(); });
+  $("dwX").addEventListener("click",()=>{ $("dw").hidden=true; }); $("dwMax").addEventListener("click",()=>{ $("dw").classList.toggle("max"); dwFit(); dwDraw(); }); $("dwP").addEventListener("change",dwDraw);
+  window.addEventListener("resize",()=>{ if(!$("dw").hidden) dwDraw(); }); }
+// ---- uloženie výkresu ----
+function saveText(name,txt,type){ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([txt],{type:type||"text/plain"})); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),60000); }
+const dwName=(ext)=>D.name.replace(/\.ply$/i,"")+"_"+DW.d.name+"."+ext;
+// SVG v mierke 1 : 100 (1 m = 10 mm): podklad (body ako obrázok) a čiary obrysu
+function dwSvg(){ const d=DW.d; if(!d) return; const k=10, mg=0.5, [a0,b0,a1,b1]=d.bb, W=(a1-a0+2*mg)*k, H=(b1-b0+2*mg)*k, X=(u)=>((u-a0+mg)*k).toFixed(2), Y=(v)=>((b1-v+mg)*k).toFixed(2), esc=(t)=>t.replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  let s=`<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W.toFixed(1)}mm" height="${H.toFixed(1)}mm" viewBox="0 0 ${W.toFixed(2)} ${H.toFixed(2)}">\n`+
+    `<title>${esc(d.title)}</title>\n<desc>${esc(D.name)} · ${esc(d.info)} · mierka 1:100 (1 m = 10 mm) · ľavý dolný roh obrysu: ${d.ul} = ${(a0+d.uo).toFixed(3)}, ${d.vl} = ${(b0+d.vo).toFixed(3)}</desc>\n`;
+  if(d.R&&d.nx*d.ny<=16e6) s+=`<g id="body" opacity="0.55"><image x="${X(d.u0)}" y="${Y(d.v0+d.ny*d.px)}" width="${(d.nx*d.px*k).toFixed(2)}" height="${(d.ny*d.px*k).toFixed(2)}" preserveAspectRatio="none" style="image-rendering:pixelated" xlink:href="${rImage(d.R,d.nx,d.ny,[60,60,60]).toDataURL("image/png")}"/></g>\n`;
+  s+=`<g id="obrys" fill="none" stroke="#000" stroke-width="0.35" stroke-linejoin="round">\n`;
+  for(const l of d.lines) s+=`<path${l.hole?' class="diera"':""} d="M${l.P.map((p)=>X(p[0])+" "+Y(p[1])).join(" L")}${l.closed?" Z":""}"/>\n`;
+  const ml=niceStep(Math.max(a1-a0,1)/4); s+=`</g>\n<g id="mierka" stroke="#000" stroke-width="0.3" font-family="sans-serif" font-size="3"><path fill="none" d="M${X(a0)} ${(H-2.5).toFixed(2)} v1.5 h${(ml*k).toFixed(2)} v-1.5"/><text stroke="none" x="${(+X(a0)+ml*k+1.5).toFixed(2)}" y="${(H-1).toFixed(2)}">${ml} m</text></g>\n</svg>\n`;
+  saveText(dwName("svg"),s,"image/svg+xml"); }
+// DXF (R12, len entity): lomené čiary v súradniciach súboru, vrstvy OBRYS a DIERY
+function dwDxf(){ const d=DW.d; if(!d) return; const L=["0","SECTION","2","ENTITIES"];
+  for(const l of d.lines){ const lay=l.hole?"DIERY":"OBRYS"; L.push("0","POLYLINE","8",lay,"66","1","10","0.0","20","0.0","30","0.0","70",l.closed?"1":"0");
+    for(const p of l.P) L.push("0","VERTEX","8",lay,"10",(p[0]+d.uo).toFixed(3),"20",(p[1]+d.vo).toFixed(3),"30","0.0"); L.push("0","SEQEND","8",lay); }
+  L.push("0","ENDSEC","0","EOF"); saveText(dwName("dxf"),L.join("\r\n")+"\r\n","application/dxf"); }
+// Therion TH2: jeden scrap, steny ako line wall; 100 jednotiek kresby = 1 m
+function dwTh2(){ const d=DW.d; if(!d) return; const k=100, [a0,b0,a1,b1]=d.bb, X=(u)=>((u-a0)*k).toFixed(1), Y=(v)=>((v-b0)*k).toFixed(1), id=d.name.replace(/[^A-Za-z0-9_-]/g,"_");
+  let s=`encoding  utf-8\n##XTHERION## xth_me_area_adjust -100 -100 ${((a1-a0)*k+100).toFixed(1)} ${((b1-b0)*k+100).toFixed(1)}\n# ${D.name} · ${d.title} · ${d.info}\n`+
+    `scrap ${id} -projection ${d.proj} -scale [0 0 ${k} 0 ${(a0+d.uo).toFixed(3)} ${(b0+d.vo).toFixed(3)} ${(a0+d.uo+1).toFixed(3)} ${(b0+d.vo).toFixed(3)} m]\n`;
+  for(const l of d.lines){ s+=`  line wall${l.closed?" -close on":""}${l.hole?" -outline in":""}\n`; for(const p of l.P) s+=`    ${X(p[0])} ${Y(p[1])}\n`; if(l.closed) s+=`    ${X(l.P[0][0])} ${Y(l.P[0][1])}\n`; s+="  endline\n"; }
+  saveText(dwName("th2"),s+"endscrap\n","text/plain"); }
+$("dwSvg").addEventListener("click",dwSvg); $("dwDxf").addEventListener("click",dwDxf); $("dwTh2").addEventListener("click",dwTh2);
+
+// ---- obrys: priemet zobrazených bodov zhora alebo zboku ----
+function ouUi(){ const has=!!D.n; for(const id of ["bOutT","bOutS","bSec","seTxt"]) $(id).disabled=!has; $("bSec").classList.toggle("on",!!ui.secMode); }
+async function outline(kind){
+  if(busy||!D.n) return; const on=unrOn(), clo=Math.max(0,+$("ouCl").value||0)/100, minP=Math.max(1,Math.round(+$("ouMin").value||1)), small=Math.max(0,+$("ouHole").value||0), tol=Math.max(0,+$("ouTol").value||0)/100;
+  setBusy("Počítam obrys…");
+  try{ await tick(); let ax=[1,0,0], ay=[0,1,0], name, title, proj="plan", ul="X", vl="Y", uo=D.org[0], vo=D.org[1];
+    if(kind==="top"){ if(on){ name="vyrovnany_podorys"; title="Obrys zhora – vyrovnaný pôdorys"; ul="staničenie"; vl="odstup"; uo=0; vo=0; } else { name="podorys"; title="Obrys zhora – pôdorys"; } }
+    else { ay=[0,0,1]; vl="Z"; vo=D.org[2];
+      if(on){ name="rozvinuty_rez"; title="Obrys zboku – rozvinutý pozdĺžny rez"; proj="extended"; ul="staničenie"; uo=0; }
+      else { ax=[-Math.sin(cam.yaw),Math.cos(cam.yaw),0]; const az=((Math.atan2(-Math.cos(cam.yaw),-Math.sin(cam.yaw))*180/Math.PI)%360+360)%360;
+        name="bokorys_"+Math.round(az); title=`Obrys zboku – priemet v smere pohľadu (azimut ${f1(az,0)}°)`; proj=`[elevation ${az.toFixed(0)}]`; ul="vodorovne"; uo=ax[0]*D.org[0]+ax[1]*D.org[1]; } }
+    const box=ui.boxClip?boxLocal():null, bb=D.bb.slice(); if(box) for(let k=0;k<3;k++){ bb[k]=Math.max(bb[k],box[k]); bb[3+k]=Math.min(bb[3+k],box[3+k]); }
+    let u0=1e30, u1=-1e30, v0=1e30, v1=-1e30; for(let c=0;c<8;c++){ const p=[bb[c&1?3:0],bb[c&2?4:1],bb[c&4?5:2]], u=dot(ax,p), v=dot(ay,p); u0=Math.min(u0,u); u1=Math.max(u1,u); v0=Math.min(v0,v); v1=Math.max(v1,v); }
+    if(!(u1>u0)||!(v1>v0)){ alert("Obrys: v zobrazenej časti nie sú body."); return; }
+    const px=Math.max(Math.max(0.5,+$("ouPx").value||5)/100,Math.sqrt((u1-u0)*(v1-v0)/20e6)), r=Math.ceil(clo/2/px), pd=r+4, nx=Math.ceil((u1-u0)/px)+2*pd, ny=Math.ceil((v1-v0)/px)+2*pd; u0-=pd*px; v0-=pd*px;
+    const R=new Uint8Array(alloc(nx*ny)), np=(await run("occ",(i)=>({...rg(i),xu:on,cv:ui.cv,R:R.buffer,nx,ny,px,u0,v0,ax,ay,box}))).reduce((s,v)=>s+v,0);
+    if(!np){ alert("Obrys: v zobrazenej časti nie sú body."); return; }
+    setBusy("Počítam obrys: hranica…"); await tick();
+    let M=new Uint8Array(nx*ny); for(let i=0;i<M.length;i++) M[i]=R[i]>=minP?1:0;
+    if(r>0) M=rEro(rDil(M,nx,ny,r),nx,ny,r);
+    const lim=small/(px*px); rComp(M,nx,ny,true,(Q,t)=>{ if(t<lim) for(let k=0;k<t;k++) M[Q[k]]=0; }); rComp(M,nx,ny,false,(Q,t,edge)=>{ if(!edge&&t<lim) for(let k=0;k<t;k++) M[Q[k]]=1; });
+    const lines=rLines(M,nx,ny,u0,v0,px,tol), b=[1e30,1e30,-1e30,-1e30]; let area=0, per=0, nv=0;
+    for(const l of lines){ area+=l.area; per+=l.len; nv+=l.P.length; for(const p of l.P){ b[0]=Math.min(b[0],p[0]); b[1]=Math.min(b[1],p[1]); b[2]=Math.max(b[2],p[0]); b[3]=Math.max(b[3],p[1]); } }
+    if(!lines.length){ b[0]=u0; b[1]=v0; b[2]=u0+nx*px; b[3]=v0+ny*px; }
+    const info=`bunka ${f1(px*100,1)} cm · ${lines.filter((l)=>!l.hole).length} obrysov, ${lines.filter((l)=>l.hole).length} dier · ${fN(nv)} vrcholov · plocha ${f1(area,2)} m² · obvod ${f1(per,2)} m · rozmer ${f1(b[2]-b[0],2)} × ${f1(b[3]-b[1],2)} m`;
+    dwShow({kind:"out",name,title,proj,u0,v0,px,nx,ny,R,lines,bb:b,uo,vo,ul,vl,info}); $("ouInfo").textContent=title+": "+info;
+  }catch(err){ console.error(err); alert("Obrys: "+err.message); }
+  finally{ setBusy(""); }
+}
+// ---- priečny rez: zvislý plát medzi dvomi bodmi ----
+// vzduch uzavretý bodmi rezu: body sa zahustia o r buniek (zacelia sa medzery), zhora a zdola sa zaplaví vonkajšok; čo ostane prázdne, je vnútro chodby.
+// Bočné okraje rastra sú steny – ak úsečka končí vo vzduchu, rez je tam otvorený. Nakoniec sa vnútro o r buniek vráti k bodom.
+function sliceAir(M,nx,ny,r,minCells){ const n=nx*ny, W=r>0?rDil(M,nx,ny,r):M.slice(), Q=new Int32Array(n); let h=0, t=0;
+  for(let y=0;y<ny;y++){ W[y*nx]=1; W[y*nx+nx-1]=1; }
+  for(let x=1;x<nx-1;x++){ if(!W[x]){ W[x]=2; Q[t++]=x; } const i=(ny-1)*nx+x; if(!W[i]){ W[i]=2; Q[t++]=i; } }
+  while(h<t){ const i=Q[h++], y=Math.floor(i/nx); if(!W[i-1]){ W[i-1]=2; Q[t++]=i-1; } if(!W[i+1]){ W[i+1]=2; Q[t++]=i+1; } if(y>0&&!W[i-nx]){ W[i-nx]=2; Q[t++]=i-nx; } if(y<ny-1&&!W[i+nx]){ W[i+nx]=2; Q[t++]=i+nx; } }
+  const E=new Uint8Array(n); let cnt=0; for(let i=0;i<n;i++) E[i]=W[i]===0?1:0;
+  rComp(E,nx,ny,true,(q,m)=>{ if(m<minCells) for(let k=0;k<m;k++) E[q[k]]=0; else cnt+=m; });
+  return cnt?(r>0?rDil(E,nx,ny,r):E):null; }
+let secN=0;
+async function section(A,B){
+  if(busy||!D.n) return; const on=unrOn(), L=Math.hypot(B[0]-A[0],B[1]-A[1]); if(!(L>=0.05)){ flash("body rezu sú príliš blízko pri sebe"); return; }
+  const th=Math.max(0.5,+$("seT").value||5)/100, clo=Math.max(0,+$("seCl").value||0)/100, tol=Math.max(0,+$("ouTol").value||0)/100;
+  setBusy("Počítam priečny rez…");
+  try{ await tick(); const ux=(B[0]-A[0])/L, uy=(B[1]-A[1])/L, box=ui.boxClip?boxLocal():null;
+    const res=await run("slab",(i)=>({...rg(i),xu:on,cv:ui.cv,ax:A[0],ay:A[1],ux,uy,L,t:th/2,box,cap:Math.ceil(4e6/NW)})); let n=0; for(const r of res) n+=r.n;
+    D.sec={A:A.slice(),B:B.slice(),on}; const o=on?[0,0]:D.org; $("seTxt").value=[A[0]+o[0],A[1]+o[1],B[0]+o[0],B[1]+o[1]].map((v)=>v.toFixed(2)).join(" "); req();
+    if(n<10){ alert("Priečny rez: v pláte medzi bodmi nie sú zobrazené body."); return; }
+    const U=new Float32Array(n*2), C=new Uint8Array(n); let k=0, z0=1e30, z1=-1e30; for(const r of res){ U.set(r.U,2*k); C.set(r.C,k); k+=r.n; } for(let i=0;i<n;i++){ const z=U[2*i+1]; if(z<z0) z0=z; if(z>z1) z1=z; }
+    const px=Math.max(Math.max(0.5,+$("sePx").value||2)/100,Math.sqrt(L*Math.max(z1-z0,0.1)/12e6)), nx=Math.ceil(L/px)+2, u0=-px, lines=[]; let txt="", r=Math.ceil(clo/2/px), A2=null, Mk=null, Cn=null, v0=0, ny=0, rr=r;
+    for(let pass=0;pass<3&&!A2;pass++,rr*=2){ const pd=rr+4; ny=Math.ceil((z1-z0)/px)+2*pd; v0=z0-pd*px; Cn=new Uint8Array(nx*ny);
+      for(let i=0;i<n;i++){ const q=Math.min(ny-1,Math.floor((U[2*i+1]-v0)/px))*nx+Math.min(nx-2,1+Math.floor(U[2*i]/px)); if(Cn[q]<255) Cn[q]++; }
+      Mk=rCore(Cn,nx,ny,Math.max(2,Math.round(0.08/px)),0.25,2);
+      A2=sliceAir(Mk,nx,ny,rr,Math.max(8,0.01/(px*px))); if(A2&&pass) txt=` · zacelené medzery do ${f1(2*rr*px*100,0)} cm`; }
+    const b=[0,z0,L,z1]; let info=`dĺžka ${f1(L,2)} m · hrúbka ${f1(th*100,0)} cm · ${fN(n)} bodov`;
+    if(A2){ let cells=0, x0=nx, x1=0, y0=ny, y1=0, open=false; for(let y=0;y<ny;y++) for(let x=0,i=y*nx;x<nx;x++,i++) if(A2[i]){ cells++; if(x<x0) x0=x; if(x>x1) x1=x; if(y<y0) y0=y; if(y>y1) y1=y; if(x<=1||x>=nx-2) open=true; }
+      for(const l of rLines(A2,nx,ny,u0,v0,px,Math.min(tol,0.75*px),[1.75,nx-1.75])) lines.push(l);
+      info+=` · plocha ${f1(cells*px*px,2)} m² · šírka ${f1((x1-x0+1)*px,2)} m · výška ${f1((y1-y0+1)*px,2)} m`+txt+(open?" · na konci úsečky je rez otvorený":""); }
+    else info+=" · obrys sa nepodarilo uzavrieť (v reze chýba stena, strop alebo dno) – skús hrubší plát alebo väčšie zacelenie";
+    secN++; dwShow({kind:"sec",name:"rez_"+secN,title:`Priečny rez ${secN}: A – B${on?" (rozvinuté)":""}`,proj:"none",u0,v0,px,nx,ny,R:Cn,pts:{U,C},lines,bb:b,uo:0,vo:D.org[2],ul:"vzdialenosť od A",vl:"Z",ends:["A","B"],info}); $("ouInfo").textContent=`Priečny rez ${secN}: `+info;
+  }catch(err){ console.error(err); alert("Priečny rez: "+err.message); }
+  finally{ setBusy(""); }
+}
+function secClick(q){ if(!secP){ secP=q.slice(); flash("rez: klikni druhý bod (B)"); req(); return; } const A=secP; secP=null; ui.secMode=false; ouUi(); section(A,q); }
+function secFromText(){ const v=$("seTxt").value.trim().split(/[\s,;]+/).map(Number).filter((x)=>isFinite(x)); if(v.length<4){ flash("rez: zadaj x1 y1 x2 y2"); return; } const o=unrOn()?[0,0]:D.org, zc=cam.t[2]; section([v[0]-o[0],v[1]-o[1],zc],[v[2]-o[0],v[3]-o[1],zc]); }
+$("bOutT").addEventListener("click",()=>outline("top")); $("bOutS").addEventListener("click",()=>outline("side"));
+$("bSec").addEventListener("click",()=>{ ui.secMode=!ui.secMode; secP=null; if(ui.secMode){ ui.bpMode=false; bpUi(); if(ui.lasso) setLasso(false); } ouUi(); flash(ui.secMode?"rez: klikni na mračno prvý bod (A), potom druhý (B)":"zadávanie rezu vypnuté"); });
+$("seTxt").addEventListener("change",secFromText);
+
 /* ============ ovládacie prvky ============ */
 $("fOpen").addEventListener("change",(e)=>{ openFile(e.target.files[0]); e.target.value=""; });
 $("bExp").addEventListener("click",exportPly);
@@ -1666,7 +1948,7 @@ async function airForView(){
   finally{ setBusy(""); setLit(); }
 }
 $("nCullM").addEventListener("change",airForView);
-$("psW").addEventListener("change",(e)=>{ ui.psW=e.target.checked; req(); }); $("psCm").addEventListener("input",(e)=>{ ui.psCm=Math.max(0.1,+e.target.value||2); req(); });
+$("psW").addEventListener("change",(e)=>{ ui.psW=e.target.checked; req(); }); $("psD").addEventListener("change",(e)=>{ ui.psD=e.target.checked; if(D.n) psDef(); req(); }); $("psK").addEventListener("input",(e)=>{ ui.psK=+e.target.value; req(); }); $("psCm").addEventListener("input",(e)=>{ ui.psCm=Math.max(0.1,+e.target.value||2); req(); });
 $("edl").addEventListener("change",(e)=>{ ui.edl=e.target.checked; req(); }); $("edlS").addEventListener("input",(e)=>{ ui.edlS=+e.target.value; req(); });
 for(const [id,k] of [["shS","shS"],["smR","smR"],["bri","bri"]]) $(id).addEventListener("input",(e)=>{ ui[k]=+e.target.value; req(); });
 $("bgSel").addEventListener("change",(e)=>{ ui.bg=+e.target.value; req(); });
