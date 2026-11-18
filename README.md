@@ -20,6 +20,17 @@ Body sa držia v pamäti ako float32 voči lokálnemu počiatku (prvý bod zaokr
 
 ## Zobrazenie
 
+**Premietanie** je predvolene pravouhlé (rovnobežné) ako v CloudCompare: rozmery nezávisia od vzdialenosti a vidno všetko pozdĺž smeru pohľadu (blízka a ďaleká rovina obopínajú celé mračno). Mierka zodpovedá perspektíve vo vzdialenosti stredu pohľadu, koliesko približuje ku kurzoru, dvojklik len presunie bod do stredu (mierka a smer ostanú). Voľba „perspektíva“ zapne stredové premietanie, napr. na pohľad zvnútra jaskyne. Pri pravouhlom premietaní sa hĺbka obrazu prepočíta na náhradu logaritmu vzdialenosti, ktorá má vo vzdialenosti stredu pohľadu rovnakú hodnotu aj sklon, takže zapĺňanie dierok, vyhladenie, zvýraznenie tvaru a plastickosť fungujú rovnako.
+
+**Osamelé body podľa pozadia** (voľba, oba spôsoby zobrazenia) – pravidlo nad rámec CloudCompare:
+- osamelosť bodu t sa určí z rozostupu bodov v jeho okolí (pozri „podľa hustoty okolia“): rozostup 2× väčší než typický (medián) dáva 0, 8× väčší a bod bez susedov dáva 1;
+- za bodom (v smere pohľadu, od oka) sa v krokoch jedného voxelu do vzdialenosti „dosah“ (predvolene 3 m) hľadá najväčšia hustota mračna b v 3D mriežke (voxel aspoň 10 cm, najviac 32 mil. voxelov; b = počet bodov vo voxeli / typický počet, ktorý vidí bod plochy);
+- husté pozadie (b ≥ 0,3) a t ≥ 0,5: bod sa nekreslí (šum pred stenou);
+- riedke alebo žiadne pozadie (b < 0,15): bod sa zväčší až „zväčšenie“-krát (predvolene 3×) a zosvetlí – tesné pokračovanie, okraj dosahu skenera, osamelé body za obrysom;
+- mriežka sa postaví pri zapnutí a prepočíta po zmazaní bodov, späť a pri rozvinutí.
+
+Skúška na umelej scéne (1 259 625 bodov: hustá stena a podlaha s rozostupom 4 mm, 3 000 bodov šumu 5 – 60 cm pred stenou, riedka rúra s rozostupom 4 cm od okraja steny do prázdna, riedka doštička 1 m pred stenou), pohľad spredu na stenu: skrytých 3 609 bodov (šum a doštička: 3 625), zvýraznených 5 888 (rúra: 6 000). Pohľad zozadu: skrytých 229, zvýraznených 9 183 (za šumom aj doštičkou je vtedy prázdno). Na výreze Kamenného mlieka (11,5 mil. bodov, typický rozostup 4,1 mm) je osamelých 1,66 % bodov (t ≥ 0,5: 0,03 %); podľa pohľadu sa skryje 0,006 – 0,010 % a zvýrazní 0,30 – 0,77 % bodov.
+
 **Spôsob zobrazenia** (voľba „spôsob“, pamätá sa v prehliadači): *PointCloud* (popis nižšie) alebo *ako CloudCompare*. Každý spôsob má vlastnú veľkosť bodu, jas, pozadie a tieňovanie normálami.
 
 *Ako CloudCompare* napodobňuje kreslenie podľa zdrojového kódu CloudCompare (`ccPointCloud::drawMeOnly`, `ccGLWindowInterface`, `ccGuiParameters`, doplnok qEDL – `ccEDLFilter`, `edl_shade.frag`, `edl_mix.frag` – a `ccBilateralFilter`); kód je napísaný nanovo, nie skopírovaný:
@@ -28,7 +39,7 @@ Body sa držia v pamäti ako float32 voči lokálnemu počiatku (prvý bod zaokr
 - „tieňovať“ = osvetlenie normálami ako v CloudCompare: smerové svetlo od kamery, difúzne 1, odlesk 0,17 s exponentom 50, okolité 0,08. Bod, ktorého normála smeruje od kamery, je tmavý (tak ako v CloudCompare). Predvolene vypnuté, lebo CloudCompare po načítaní normály na osvetlenie nepoužíva;
 - **EDL** ako v CloudCompare: hĺbka sa prepočíta na pomernú v rozsahu hĺbok obalu mračna (blízka rovina = max(zmin; 0,005 · zmax), ak je rozsah menší než polovica zmax, rozšíri sa o ±zmax/4). V mierke obrazu 1, 1/2 a 1/4 sa sčíta, o koľko je 8 susedov vo vzdialenosti mierka × polomer bližšie, deleno mierkou, a farba sa násobí exp(−sila × súčet). Mierky 1/2 a 1/4 sa rozmažú (5 × 5, váhy exp(−r²/32)) a zmiešajú: (C1 + 0,5·C2 + 0,25·C4) / 1,75. Sila 100 a polomer 3 px sú hodnoty CloudCompare pre perspektívu (pri rovnobežnom premietaní používa 1,2 px).
 
-Porovnanie s CloudCompare 2.11.3 na výreze Kamenného mlieka (11,5 mil. bodov, pohľad zhora, rovnaká mierka 45,7 px/m, rovnobežné premietanie napodobnené úzkym zorným uhlom; stredná oblasť 300 × 400 px, jas 0 – 255, rozdiel po rozmazaní o 4 px, aby nerozhodovalo poradie kreslenia jednotlivých bodov):
+Porovnanie s CloudCompare 2.11.3 na výreze Kamenného mlieka (11,5 mil. bodov, pohľad zhora, rovnaká mierka 45,7 px/m, oba pravouhlo; stredná oblasť 300 × 400 px, jas 0 – 255, rozdiel po rozmazaní o 4 px, aby nerozhodovalo poradie kreslenia jednotlivých bodov):
 
 | nastavenie | jas CloudCompare | jas PointCloud | rozdiel | korelácia |
 |---|---|---|---|---|
@@ -37,7 +48,7 @@ Porovnanie s CloudCompare 2.11.3 na výreze Kamenného mlieka (11,5 mil. bodov, 
 | normály | 29,0 | 29,1 | 1,1 | 0,977 |
 | normály + EDL | 21,7 | 20,0 | 2,1 | 0,983 |
 
-V spôsobe *ako CloudCompare* sa nepoužíva veľkosť bodu v priestore, veľkosť podľa hustoty, zvýraznenie tvaru, plastickosť ani vyhladenie. Úplný priehľad, triedy, výber a kváder fungujú rovnako. Klik na bod (lomové body, rez) sa vyhodnocuje s veľkosťou bodov ako v spôsobe PointCloud, aby cez 1-pixelové body nepadol na plochu za nimi. CloudCompare má predvolene rovnobežné premietanie; PointCloud kreslí vždy v perspektíve.
+V spôsobe *ako CloudCompare* sa nepoužíva veľkosť bodu v priestore, veľkosť podľa hustoty, zvýraznenie tvaru, plastickosť ani vyhladenie. Úplný priehľad, triedy, výber a kváder fungujú rovnako. Klik na bod (lomové body, rez) sa vyhodnocuje s veľkosťou bodov ako v spôsobe PointCloud, aby cez 1-pixelové body nepadol na plochu za nimi. Polomer EDL je ako v CloudCompare 1,2 px pri pravouhlom premietaní a 3 px v perspektíve; každé premietanie si pamätá svoj.
 
 **Spôsob PointCloud:**
 
