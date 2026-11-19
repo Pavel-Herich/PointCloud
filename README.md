@@ -22,14 +22,22 @@ Body sa držia v pamäti ako float32 voči lokálnemu počiatku (prvý bod zaokr
 
 **Premietanie** je predvolene pravouhlé (rovnobežné) ako v CloudCompare: rozmery nezávisia od vzdialenosti a vidno všetko pozdĺž smeru pohľadu (blízka a ďaleká rovina obopínajú celé mračno). Mierka zodpovedá perspektíve vo vzdialenosti stredu pohľadu, koliesko približuje ku kurzoru, dvojklik len presunie bod do stredu (mierka a smer ostanú). Voľba „perspektíva“ zapne stredové premietanie, napr. na pohľad zvnútra jaskyne. Pri pravouhlom premietaní sa hĺbka obrazu prepočíta na náhradu logaritmu vzdialenosti, ktorá má vo vzdialenosti stredu pohľadu rovnakú hodnotu aj sklon, takže zapĺňanie dierok, vyhladenie, zvýraznenie tvaru a plastickosť fungujú rovnako.
 
-**Osamelé body podľa pozadia** (voľba, oba spôsoby zobrazenia) – pravidlo nad rámec CloudCompare:
-- osamelosť bodu t sa určí z rozostupu bodov v jeho okolí (pozri „podľa hustoty okolia“): rozostup 2× väčší než typický (medián) dáva 0, 8× väčší a bod bez susedov dáva 1;
-- za bodom (v smere pohľadu, od oka) sa v krokoch jedného voxelu do vzdialenosti „dosah“ (predvolene 3 m) hľadá najväčšia hustota mračna b v 3D mriežke (voxel aspoň 10 cm, najviac 32 mil. voxelov; b = počet bodov vo voxeli / typický počet, ktorý vidí bod plochy);
-- husté pozadie (b ≥ 0,3) a t ≥ 0,5: bod sa nekreslí (šum pred stenou);
-- riedke alebo žiadne pozadie (b < 0,15): bod sa zväčší až „zväčšenie“-krát (predvolene 3×) a zosvetlí – tesné pokračovanie, okraj dosahu skenera, osamelé body za obrysom;
+**SOR filter** (Statistical Outlier Removal) prevzatý z CloudCompare (CCCoreLib, `CloudSamplingTools::sorFilter`):
+- pre každý bod sa spočíta priemerná vzdialenosť k jeho k najbližším bodom; k zahŕňa bod samotný, ktorý sa vynechá (k = 6 → 5 susedov), presne ako v CloudCompare;
+- z priemerných vzdialeností celého mračna sa spočíta priemer μ a smerodajná odchýlka σ; odfiltrovaný je bod, ktorého priemerná vzdialenosť je väčšia než μ + n·σ (predvolene k = 6, n = 1,0 ako v CloudCompare);
+- hľadanie je presné: každý blok mračna s okrajom R (50-násobok vzdialenosti k najbližšiemu susedovi, aspoň 15 cm) sa uloží do hašovanej mriežky s bunkou 2-násobku tejto vzdialenosti a prehľadáva sa po škrupinách kocky, kým nie je k − 1. sused bližšie než prehľadaný polomer; body bez výsledku do R sa dopočítajú prehľadaním celého mračna;
+- priemerné vzdialenosti (Float32 ako v CloudCompare) idú na grafickú kartu, takže zmena n sa prejaví hneď; zmena k spustí nový výpočet;
+- „SOR filter“ zaškrtnuté: odfiltrované body sa nekreslia; „Vybrať“ ich vyberie (medzi zobrazenými triedami) na zmazanie alebo uloženie; po zmazaní bodov sa výsledok prepočíta tlačidlom ↻ (opakovaný SOR odfiltruje ďalšie body, rovnako ako v CloudCompare).
+
+Overenie na výreze Kamenného mlieka (11 529 838 bodov, k = 6): CloudCompare 2.11.3 (príkazový riadok `-SOR 6 1.0`) ponechal 10 406 022 bodov, teda odfiltroval 1 123 816; PointCloud odfiltroval 1 123 816 tých istých bodov (zhodné súčty súradníc), μ = 7,911 mm, σ = 3,697 mm, prah 11,607 mm. Pri n = 2 je to 367 815 bodov, zhodne s presnou referenciou (k-d strom). Výpočet trval 38 – 45 s v dvoch vláknach (CloudCompare 58 s).
+
+**Osamelé body podľa pozadia** (voľba, oba spôsoby zobrazenia) – pravidlo nad rámec CloudCompare, pracuje s bodmi odfiltrovanými SOR (ak SOR ešte nie je vypočítaný, spočíta sa):
+- pre odfiltrovaný bod sa v 3D mriežke hustoty (voxel aspoň 10 cm, najviac 32 mil. voxelov; hustota = počet bodov vo voxeli / typický počet, ktorý vidí bod plochy) zistí najväčšia hustota b vo valci s polomerom jedného voxelu pozdĺž smeru pohľadu, od bodu dozadu do vzdialenosti „dosah“ (predvolene 3 m);
+- b < 0,15 – bod je v pohľade osamotený a za ním nič nie je (tesné pokračovanie, okraj dosahu skenera, body za obrysom): zväčší sa až „zväčšenie“-krát (predvolene 3×) a zosvetlí, aj keď je SOR filter zapnutý;
+- ostatné odfiltrované body sa pri zapnutom SOR filtri nekreslia, inak sa kreslia normálne; body, ktoré SOR neodfiltruje, sa nemenia;
 - mriežka sa postaví pri zapnutí a prepočíta po zmazaní bodov, späť a pri rozvinutí.
 
-Skúška na umelej scéne (1 259 625 bodov: hustá stena a podlaha s rozostupom 4 mm, 3 000 bodov šumu 5 – 60 cm pred stenou, riedka rúra s rozostupom 4 cm od okraja steny do prázdna, riedka doštička 1 m pred stenou), pohľad spredu na stenu: skrytých 3 609 bodov (šum a doštička: 3 625), zvýraznených 5 888 (rúra: 6 000). Pohľad zozadu: skrytých 229, zvýraznených 9 183 (za šumom aj doštičkou je vtedy prázdno). Na výreze Kamenného mlieka (11,5 mil. bodov, typický rozostup 4,1 mm) je osamelých 1,66 % bodov (t ≥ 0,5: 0,03 %); podľa pohľadu sa skryje 0,006 – 0,010 % a zvýrazní 0,30 – 0,77 % bodov.
+Skúška na umelej scéne (1 259 625 bodov: hustá stena a podlaha s rozostupom 4 mm, 3 000 bodov šumu 5 – 60 cm pred stenou, riedka rúra s rozostupom 4 cm od okraja steny do prázdna, riedka doštička 1 m pred stenou): SOR odfiltruje 9 725 bodov (šum, rúra, doštička a okraje plôch). Pohľad spredu: zvýraznených 5 808 (rúra okrem úseku pri stene), skrytých 3 917 (šum, doštička, začiatok rúry). Pohľad zozadu: zvýraznených 8 852, skrytých 873. Na výreze Kamenného mlieka sa z 1 123 816 odfiltrovaných bodov podľa pohľadu zvýrazní 7 267 – 14 446 (0,06 – 0,13 % mračna), ostatné sa so SOR filtrom skryjú.
 
 **Spôsob zobrazenia** (voľba „spôsob“, pamätá sa v prehliadači): *PointCloud* (popis nižšie) alebo *ako CloudCompare*. Každý spôsob má vlastnú veľkosť bodu, jas, pozadie a tieňovanie normálami.
 
