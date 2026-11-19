@@ -11,7 +11,9 @@ Mračná sa nikam nenahrávajú — prehliadač ich číta priamo z disku.
 
 ## Mračno — ovládanie
 
-- ľavé tlačidlo otáča, pravé (alebo Shift + ľavé) posúva, koliesko približuje k miestu pod kurzorom, dvojklik nastaví stred otáčania na bod (zobrazí sa zameriavač)
+- ľavé tlačidlo otáča okolo stredu otáčania (počas pohybu ho ukazuje zameriavač), pravé (alebo Shift + ľavé) posúva pohľad – stred otáčania pritom ostáva na mieste, koliesko približuje k miestu pod kurzorom, dvojklik nastaví stred otáčania na bod pod kurzorom a presunie ho do stredu obrazu
+- ikony pohľadov: celé mračno (stred otáčania do stredu mračna), zhora, zdola, spredu (v smere +Y), zozadu, zľava (v smere +X), sprava, izometricky spredu sprava a zozadu zľava; štandardný pohľad dá stred otáčania do stredu obrazu. Pohľad zhora a zdola je presne zvislý (pravý vektor kamery sa berie z azimutu, nie z vektorového súčinu so zvislicou)
+- pri každom posuvníku je hodnota a rozsah, napr. „1,3× (0,5 – 3)“
 - pri zapnutom lase otáča stlačené koliesko
 - `L` laso (Shift pridá, Ctrl uberie), `Delete` zmaže vybrané, `I` obráti výber, `Esc` zruší výber, `Ctrl+Z` späť, `F` celé mračno, `T` pohľad zhora
 - kváder: súradnice v súradniciach súboru; „zobraziť len vnútro“ je len náhľad, natrvalo strihajú tlačidlá „Zmazať mimo / vnútri“
@@ -22,9 +24,17 @@ Body sa držia v pamäti ako float32 voči lokálnemu počiatku (prvý bod zaokr
 
 **Premietanie** je predvolene pravouhlé (rovnobežné) ako v CloudCompare: rozmery nezávisia od vzdialenosti a vidno všetko pozdĺž smeru pohľadu (blízka a ďaleká rovina obopínajú celé mračno). Mierka zodpovedá perspektíve vo vzdialenosti stredu pohľadu, koliesko približuje ku kurzoru, dvojklik len presunie bod do stredu (mierka a smer ostanú). Voľba „perspektíva“ zapne stredové premietanie, napr. na pohľad zvnútra jaskyne. Pri pravouhlom premietaní sa hĺbka obrazu prepočíta na náhradu logaritmu vzdialenosti, ktorá má vo vzdialenosti stredu pohľadu rovnakú hodnotu aj sklon, takže zapĺňanie dierok, vyhladenie, zvýraznenie tvaru a plastickosť fungujú rovnako.
 
+**Tieňovanie PCV** prepočíta sivé tieňovanie v RGB ako doplnok PCV (ShadeVis) v CloudCompare 2.11 – 2.13 – napríklad keď bolo pôvodné tieňovanie urobené na mračne so šumom, ktorý už je zmazaný:
+- smery sú rozložené rovnomerne na guli ako v qPCV (prepis funkcie SampleSphere podľa „partsphere.m“ P. Leopardiho), predvolene 256; voľba „len zhora“ vezme z dvojnásobného počtu smerov tie, ktoré mieria nadol (v CloudCompare 180°);
+- pre každý smer sa mračno „odfotí“ rovnobežne do rastra 1024 × 1024 (šírka = uhlopriečka obalu, hĺbka ± uhlopriečka), 1 bod = 1 pixel, v pixeli sa drží najbližšia hĺbka; bod je viditeľný, ak je jeho hĺbka menšia než 0,002 + 0,998 × hĺbka pixelu (posun glDepthRange v qPCV);
+- podiel smerov, z ktorých je bod viditeľný, sa lineárne od najmenšej po najväčšiu hodnotu prevedie na sivú 0 – 255 a zapíše do farieb (uloženie PLY zapíše nové farby, „Pôvodné farby“ vráti farby zo súboru);
+- zmazané body nezatieňujú; pri zapnutom SOR filtri nezatieňujú ani odfiltrované body.
+
+Overenie na výreze Kamenného mlieka (11 529 838 bodov, 64 smerov, raster 1024): CloudCompare 2.11.3 (príkazový riadok `-PCV -N_RAYS 64 -RESOLUTION 1024`) dal viditeľnosť 0 – 0,8594, priemer 0,1846; PointCloud 0 – 0,8594, priemer 0,1848. Rovnaký počet smerov má 95,7 % bodov, korelácia po bodoch 0,9993, priemerný rozdiel 0,44 z 255; priemery v 2 cm voxeloch majú koreláciu 0,9998. Výpočet trval 20 s v dvoch vláknach (CloudCompare 94 s). Pôvodné farby súboru majú s týmto výsledkom koreláciu len 0,37 – tieňovanie súboru bolo počítané na inom (pôvodnom, zašumenom) mračne. Novší vývojový kód CloudCompare (budúca 2.14) má hĺbku rastra polovičnú, teda dvakrát prísnejšiu toleranciu viditeľnosti.
+
 **SOR filter** (Statistical Outlier Removal) prevzatý z CloudCompare (CCCoreLib, `CloudSamplingTools::sorFilter`):
 - pre každý bod sa spočíta priemerná vzdialenosť k jeho k najbližším bodom; k zahŕňa bod samotný, ktorý sa vynechá (k = 6 → 5 susedov), presne ako v CloudCompare;
-- z priemerných vzdialeností celého mračna sa spočíta priemer μ a smerodajná odchýlka σ; odfiltrovaný je bod, ktorého priemerná vzdialenosť je väčšia než μ + n·σ (predvolene k = 6, n = 1,0 ako v CloudCompare);
+- z priemerných vzdialeností celého mračna sa spočíta priemer μ a smerodajná odchýlka σ; odfiltrovaný je bod, ktorého priemerná vzdialenosť je väčšia než μ + n·σ (predvolene k = 6 ako v CloudCompare a n = 4; CloudCompare má n = 1,0, čo na výreze Kamenného mlieka odfiltruje 9,75 % bodov);
 - hľadanie je presné: každý blok mračna s okrajom R (50-násobok vzdialenosti k najbližšiemu susedovi, aspoň 15 cm) sa uloží do hašovanej mriežky s bunkou 2-násobku tejto vzdialenosti a prehľadáva sa po škrupinách kocky, kým nie je k − 1. sused bližšie než prehľadaný polomer; body bez výsledku do R sa dopočítajú prehľadaním celého mračna;
 - priemerné vzdialenosti (Float32 ako v CloudCompare) idú na grafickú kartu, takže zmena n sa prejaví hneď; zmena k spustí nový výpočet;
 - „SOR filter“ zaškrtnuté: odfiltrované body sa nekreslia; „Vybrať“ ich vyberie (medzi zobrazenými triedami) na zmazanie alebo uloženie; po zmazaní bodov sa výsledok prepočíta tlačidlom ↻ (opakovaný SOR odfiltruje ďalšie body, rovnako ako v CloudCompare).
@@ -45,7 +55,7 @@ Skúška na umelej scéne (1 259 625 bodov: hustá stena a podlaha s rozostupom 
 - bod má pevnú veľkosť v pixeloch (1 – 16, predvolene 1), štvorcový, voliteľne okrúhly; farba bez úprav; obraz sa nezapĺňa ani nevyhladzuje;
 - pozadie: prechod z modrej (10, 102, 151) hore do čiernej dole;
 - „tieňovať“ = osvetlenie normálami ako v CloudCompare: smerové svetlo od kamery, difúzne 1, odlesk 0,17 s exponentom 50, okolité 0,08. Bod, ktorého normála smeruje od kamery, je tmavý (tak ako v CloudCompare). Predvolene vypnuté, lebo CloudCompare po načítaní normály na osvetlenie nepoužíva;
-- **EDL** ako v CloudCompare: hĺbka sa prepočíta na pomernú v rozsahu hĺbok obalu mračna (blízka rovina = max(zmin; 0,005 · zmax), ak je rozsah menší než polovica zmax, rozšíri sa o ±zmax/4). V mierke obrazu 1, 1/2 a 1/4 sa sčíta, o koľko je 8 susedov vo vzdialenosti mierka × polomer bližšie, deleno mierkou, a farba sa násobí exp(−sila × súčet). Mierky 1/2 a 1/4 sa rozmažú (5 × 5, váhy exp(−r²/32)) a zmiešajú: (C1 + 0,5·C2 + 0,25·C4) / 1,75. Sila 100 a polomer 3 px sú hodnoty CloudCompare pre perspektívu (pri rovnobežnom premietaní používa 1,2 px).
+- **EDL** ako v CloudCompare: hĺbka sa prepočíta na pomernú v rozsahu hĺbok obalu mračna (blízka rovina = max(zmin; 0,005 · zmax), ak je rozsah menší než polovica zmax, rozšíri sa o ±zmax/4). V mierke obrazu 1, 1/2 a 1/4 sa sčíta, o koľko je 8 susedov vo vzdialenosti mierka × polomer bližšie, deleno mierkou, a farba sa násobí exp(−sila × súčet). Mierky 1/2 a 1/4 sa rozmažú (5 × 5, váhy exp(−r²/32)) a zmiešajú: (C1 + 0,5·C2 + 0,25·C4) / 1,75. Sila 100 a polomer 3 px sú hodnoty CloudCompare pre perspektívu (pri rovnobežnom premietaní používa 1,2 px). V PointCloud je EDL predvolene zapnuté so silou 60 (10 % rozsahu posuvníka 10 – 500) a jas 1,3.
 
 Porovnanie s CloudCompare 2.11.3 na výreze Kamenného mlieka (11,5 mil. bodov, pohľad zhora, rovnaká mierka 45,7 px/m, oba pravouhlo; stredná oblasť 300 × 400 px, jas 0 – 255, rozdiel po rozmazaní o 4 px, aby nerozhodovalo poradie kreslenia jednotlivých bodov):
 
@@ -63,10 +73,10 @@ V spôsobe *ako CloudCompare* sa nepoužíva veľkosť bodu v priestore, veľkos
 - **veľkosť bodu v priestore** — bod má veľkosť v centimetroch: zblízka sa zväčší a zaplní medzery, z diaľky ostane na najmenšej veľkosti (posuvník „bod“, predvolene 1 pixel). Väčšie body sú okrúhle.
 - **podľa hustoty okolia** (predvolené) — veľkosť bodu je „výplň“ × rozostup bodov v jeho okolí, najviac zadaný počet centimetrov. V hustom mračne sú body drobné a kresba jemná; v riedkom (tesné pokračovanie, okraj dosahu skenera) sú väčšie, aby ich bolo vidno. Rozostup sa po načítaní spočíta pre každý bod: voxely s hranou asi 8-násobku vzdialenosti k najbližšiemu susedovi (3 – 20 cm), počet bodov N vo voxeli a jeho 26 susedoch, rozostup ≈ 3,2·h/√N. Dve výnimky držia šum malý: bod s menej než 3 bodmi v okolí ostáva najmenší, a bod, ktorý má do 4 – 8 voxelov aspoň 3-krát hustejšie mračno (šum tesne pri hustej ploche), dostane veľkosť bodov tej plochy. Bez voľby má každý bod rovnakú veľkosť (5-násobok vzdialenosti k najbližšiemu susedovi).
 - obraz sa skladá z hĺbky scény v štyroch krokoch: dierky veľké 1 – 2 pixely sa zaplnia farbou okolia; hĺbka sa vyhladí s váhou podľa rozdielu hĺbok (hrany ostanú ostré, šum bodov a osamelé body pred plochou zmiznú); z vyhladenej hĺbky sa počíta tieňovanie
-- **zvýrazniť tvar** — eye-dome lighting: bod obrazu stmavne, ak je ďalej než jeho susedia
+- **zvýrazniť tvar** — eye-dome lighting: bod obrazu stmavne, ak je ďalej než jeho susedia; predvolená sila 0,3 (10 % rozsahu 0,1 – 2)
 - **plastickosť** — osvetlenie plochy zľava zhora; sklon plochy sa počíta z vyhladenej hĺbky, normály v súbore netreba
 - **vyhladenie** — polomer vyhladenia hĺbky v pixeloch, s ním sa jemne vyhladzuje aj farba (váha susedných pixelov 0,3 pri 1, 0,5 pri 2, 0,7 od 3). Predvolená 1 dáva jemnú kresbu bez bodkovania; 0 = bez vyhladenia, každý pixel má farbu najbližšieho bodu ako v CloudCompare; väčšie hodnoty obraz zhladia a zhrubnú
-- **jas** a **pozadie** (tmavé, čierne, sivé, svetlé, biele)
+- **jas** (predvolene 1,3× v oboch spôsoboch) a **pozadie** (tmavé, čierne, sivé, svetlé, biele, CloudCompare)
 - **úplný priehľad podľa modelu jaskyne** — rozhoduje vzduch modelu pred bodom (smerom k oku) a za ním, po štyroch vzorkách 1,5 – 8 voxelov:
   - vzduch pred bodom: bod je vidno;
   - vzduch len za bodom: stena videná zo strany horniny, skryje sa celá, z každej vzdialenosti;

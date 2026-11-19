@@ -18,6 +18,9 @@ h2{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--go
 section{border-top:1px solid var(--line);padding:10px 0 8px}
 .row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:5px 0}
 .row[hidden]{display:none}
+.rv{font-variant-numeric:tabular-nums;white-space:nowrap}
+button.vi{padding:2px 3px;line-height:0}
+button.vi svg{width:22px;height:20px;display:block}
 button,select,input{font:inherit;color:var(--ink)}
 button,.btn{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:4px 9px;cursor:pointer;display:inline-block}
 button:hover,.btn:hover{border-color:var(--gold)}
@@ -52,7 +55,7 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
 <body>
 <div id="app">
 <aside>
-  <h1><a href="index.html">PointCloud</a> <span class="k">· etapa 4d</span></h1>
+  <h1><a href="index.html">PointCloud</a> <span class="k">· etapa 4e</span></h1>
 
   <section>
     <h2>Súbor</h2>
@@ -75,18 +78,26 @@ pre{background:#0b0f14;border:1px solid var(--line);border-radius:4px;padding:7p
     <h2>Zobrazenie</h2>
     <div class="row"><label class="k" title="PointCloud: veľkosť bodu v priestore a podľa hustoty, zaplnenie dierok, vyhladenie hĺbky, plastické osvetlenie z hĺbky obrazu.
 Ako CloudCompare: bod má pevnú veľkosť v pixeloch, obraz sa nevyhladzuje ani nezapĺňa, normály osvetľujú svetlom od kamery, voliteľne EDL s rovnakými konštantami ako CloudCompare.">spôsob <select id="rndSel"><option value="0">PointCloud</option><option value="1">ako CloudCompare</option></select></label></div>
+    <div class="row"><button id="bPcv" disabled title="Prepočíta sivé tieňovanie v RGB ako doplnok PCV (ShadeVis) v CloudCompare – napr. keď bolo pôvodné tieňovanie urobené na mračne so šumom.
+Mračno sa „odfotí“ rovnobežne zo zadaného počtu smerov rovnomerne rozložených na guli (1 bod = 1 pixel v rastri zadaného rozlíšenia na uhlopriečku mračna); pre každý bod sa spočíta podiel smerov, z ktorých je viditeľný.
+Výsledok (od najmenšej po najväčšiu hodnotu) sa zapíše do farieb ako odtieň sivej. Zmazané body nezatieňujú; pri zapnutom SOR filtri ani odfiltrované. Uloženie PLY zapíše nové farby.">Tieňovanie PCV</button>
+      <label class="k" title="Počet smerov (v CloudCompare predvolene 256)">smerov <input type="number" id="pcvN" value="256" min="16" max="4096" step="16" class="n" style="width:56px"></label>
+      <label class="k" title="Rozlíšenie rastra (v CloudCompare predvolene 1024)">raster <select id="pcvR"><option>512</option><option selected>1024</option><option>2048</option></select></label></div>
+    <div class="row"><label class="k" title="Len smery zhora (pologuľa, v CloudCompare voľba 180°); inak celá guľa (360°)"><input type="checkbox" id="pcv180"> len zhora</label>
+      <button id="bPcvU" disabled title="Vrátiť farby zo súboru">Pôvodné farby</button></div>
+    <div class="k" id="pcvInfo"></div>
     <div class="row"><label class="k">farba <select id="colMode"><option value="0">RGB</option><option value="1">výška</option><option value="2">strop / podlaha</option><option value="3" disabled>sklon (normály)</option></select></label>
-      <label class="k" id="psL" title="Najmenšia veľkosť bodu v pixeloch">bod <input type="range" id="ps" min="1" max="6" step="0.5" value="1"></label><span class="k" id="psV">1</span></div>
+      <label class="k" id="psL" title="Najmenšia veľkosť bodu v pixeloch">bod <input type="range" id="ps" min="1" max="6" step="0.5" value="1"></label></div>
     <div class="row rnd0"><label class="k" title="Bod má veľkosť v priestore: zblízka sa zväčší a zaplní medzery, z diaľky ostane najmenší"><input type="checkbox" id="psW" checked> veľkosť bodu v priestore</label>
       <label class="k" title="Veľkosť bodu v priestore; pri veľkosti podľa hustoty je to najväčšia veľkosť"><input type="number" id="psCm" value="4" min="0.2" max="30" step="0.5" style="width:3.6em"> cm</label></div>
     <div class="row rnd0"><label class="k" title="Veľkosť bodu podľa rozostupu bodov v jeho okolí (asi 15 cm): v hustom mračne sú body drobné a kresba jemná, v riedkom (tesné pokračovanie, okraj dosahu skenera) sú väčšie, aby ich bolo vidno. Osamelé body bez susedov a šum tesne pri hustej ploche ostávajú najmenšie."><input type="checkbox" id="psD" checked> podľa hustoty okolia</label>
       <label class="k" title="Násobok rozostupu bodov: pri 1 sa susedné body práve dotýkajú, pri väčšej hodnote sa prekrývajú">výplň <input type="range" id="psK" min="0.5" max="4" step="0.1" value="1.5"></label></div>
     <div class="row rnd0"><label class="k" title="Eye-dome lighting: stmaví body, ktoré sú ďalej než ich susedia v obraze – vynikne tvar aj bez normál a farieb"><input type="checkbox" id="edl" checked> zvýrazniť tvar</label>
-      <label class="k">sila <input type="range" id="edlS" min="0.1" max="2" step="0.1" value="0.5"></label></div>
+      <label class="k">sila <input type="range" id="edlS" min="0.1" max="2" step="0.1" value="0.3"></label></div>
     <div class="row rnd0"><label class="k" title="Osvetlenie plochy zľava zhora; sklon plochy sa počíta z vyhladenej hĺbky obrazu, netreba normály">plastickosť <input type="range" id="shS" min="0" max="1.5" step="0.1" value="0.5"></label></div>
     <div class="row rnd0"><label class="k" title="Vyhladenie hĺbky a farby v obraze (v pixeloch): menej bodkovaný, ale hrubší obraz. 0 = bez vyhladenia, každý pixel má farbu najbližšieho bodu (ako v CloudCompare).">vyhladenie <input type="range" id="smR" min="0" max="12" step="1" value="1"></label></div>
-    <div class="row rnd1" hidden><label class="k" title="Eye-dome lighting ako v CloudCompare (doplnok qEDL): tri mierky obrazu (1, 1/2, 1/4), v každej sa bod stmaví podľa toho, o koľko sú jeho 8 susedov bližšie (hĺbka je pomerná k hĺbke celého mračna), zmenšené mierky sa rozmažú a zmiešajú v pomere 1 : 0,5 : 0,25"><input type="checkbox" id="ccEdl"> EDL</label>
-      <label class="k" title="Sila stmavenia (v CloudCompare 100)">sila <input type="range" id="ccEdlS" min="10" max="500" step="10" value="100"></label>
+    <div class="row rnd1" hidden><label class="k" title="Eye-dome lighting ako v CloudCompare (doplnok qEDL): tri mierky obrazu (1, 1/2, 1/4), v každej sa bod stmaví podľa toho, o koľko sú jeho 8 susedov bližšie (hĺbka je pomerná k hĺbke celého mračna), zmenšené mierky sa rozmažú a zmiešajú v pomere 1 : 0,5 : 0,25"><input type="checkbox" id="ccEdl" checked> EDL</label>
+      <label class="k" title="Sila stmavenia (v CloudCompare 100)">sila <input type="range" id="ccEdlS" min="10" max="500" step="10" value="60"></label>
       <label class="k" title="Vzdialenosť susedov v pixeloch pri plnej mierke (v CloudCompare 1,2 pri pravouhlom premietaní, 3 v perspektíve)">polomer <input type="range" id="ccEdlR" min="1" max="8" step="0.2" value="1.2"></label></div>
     <div class="row rnd1" hidden><label class="k" title="Okrúhle body (v CloudCompare voľba „rounded points“, predvolene vypnutá)"><input type="checkbox" id="ccRound"> okrúhle body</label></div>
     <div class="row"><label class="k">jas <input type="range" id="bri" min="0.5" max="3" step="0.1" value="1.3"></label>
@@ -98,17 +109,17 @@ Ako CloudCompare: bod má pevnú veľkosť v pixeloch, obraz sa nevyhladzuje ani
     <div class="row"><label class="k" title="Body, ktoré odfiltruje SOR (riadok nižšie), sa posúdia podľa pohľadu: ak okolo nich a za nimi (do zadaného dosahu) nie je mračno – tesné pokračovanie, okraj dosahu skenera, osamelé body za obrysom – zväčšia sa a zosvetlia.
 Ostatné odfiltrované body sa pri zapnutom SOR filtri nekreslia, inak sa kreslia normálne. Body, ktoré SOR neodfiltruje, sa nemenia.
 Hustota sa meria v 3D mriežke (voxel aspoň 10 cm) vo valci s polomerom jedného voxelu pozdĺž pohľadu; mriežka sa prepočíta po zmazaní bodov a pri rozvinutí."><input type="checkbox" id="isoE"> osamelé body podľa pozadia</label></div>
-    <div class="row rnd2"><label class="k" title="Ako ďaleko za bodom (v smere pohľadu) sa hľadá husté mračno">dosah <input type="range" id="isoL" min="0.5" max="10" step="0.5" value="3"></label><span class="k" id="isoLV">3 m</span>
+    <div class="row rnd2"><label class="k" title="Ako ďaleko za bodom (v smere pohľadu) sa hľadá husté mračno">dosah <input type="range" id="isoL" min="0.5" max="10" step="0.5" value="3"></label>
       <label class="k" title="Najväčšie zväčšenie osamelých bodov bez pozadia">zväčšenie <input type="range" id="isoK" min="1" max="6" step="0.5" value="3"></label></div>
     <div class="row"><label class="k" title="Statistical Outlier Removal ako v CloudCompare: pre každý bod sa spočíta priemerná vzdialenosť k jeho k najbližším bodom (k vrátane bodu samého, teda k − 1 susedov),
 potom priemer a smerodajná odchýlka σ cez celé mračno. Odfiltrovaný je bod, ktorého priemerná vzdialenosť je väčšia než priemer + n·σ. Zaškrtnuté: odfiltrované body sa nekreslia
 (okrem zvýraznených osamelých bodov). Výpočet beží pri prvom zapnutí a pri zmene k; n sa mení okamžite."><input type="checkbox" id="sorE"> SOR filter</label>
       <label class="k" title="Počet najbližších bodov vrátane bodu samého (v CloudCompare predvolene 6)">k <input type="number" id="sorK" value="6" min="2" max="32" step="1" class="n" style="width:44px"></label>
-      <label class="k" title="Násobok smerodajnej odchýlky (v CloudCompare predvolene 1,0)">n <input type="number" id="sorN" value="1" min="0" max="20" step="0.1" class="n" style="width:50px"></label>
+      <label class="k" title="Násobok smerodajnej odchýlky (v CloudCompare predvolene 1,0)">n <input type="number" id="sorN" value="4" min="0" max="20" step="0.1" class="n" style="width:50px"></label>
       <button id="bSorSel" disabled title="Vybrať body odfiltrované SOR (medzi zobrazenými triedami) – napr. na zmazanie alebo uloženie">Vybrať</button><button id="bSorRe" disabled title="Prepočítať SOR (napr. po zmazaní bodov)">↻</button></div>
     <div class="k" id="sorInfo"></div>
     <div class="row"><label class="k" title="Pravouhlé (rovnobežné) premietanie je predvolené ako v CloudCompare: rozmery nezávisia od vzdialenosti, vidno všetko pozdĺž smeru pohľadu. Perspektíva umožňuje pohľad zvnútra jaskyne."><input type="checkbox" id="persp"> perspektíva</label></div>
-    <div class="row"><button data-v="fit" title="F">Celé</button><button data-v="top" title="T">Zhora</button><button data-v="py">Pohľad +Y</button><button data-v="px">Pohľad +X</button></div>
+    <div class="row" id="viewBtns"><button class="vi" data-v="fit" title="Celé mračno (F); stred otáčania do stredu mračna"></button><button class="vi" data-v="top" title="Zhora (T)"></button><button class="vi" data-v="bottom" title="Zdola"></button><button class="vi" data-v="py" title="Spredu – pohľad v smere +Y"></button><button class="vi" data-v="back" title="Zozadu – pohľad v smere −Y"></button><button class="vi" data-v="px" title="Zľava – pohľad v smere +X"></button><button class="vi" data-v="right" title="Sprava – pohľad v smere −X"></button><button class="vi" data-v="iso1" title="Izometricky spredu sprava"></button><button class="vi" data-v="iso2" title="Izometricky zozadu zľava"></button></div>
   </section>
 
   <section>
@@ -769,6 +780,26 @@ function KERNELS(){
   selSor(S,a){ const M=S.M, K=S.K, SD=new Float32Array(a.SD), thr=a.thr, cv=a.cv, R=[0,0,0,0,0];
     for(let i=a.a;i<a.b;i++){ let v=M[i]; if(v>=2) continue; const k=K[i]; if((cv>>k)&1){ const nv=SD[i]>thr?1:0; if(nv!==v){ M[i]=nv; v=nv; } } R[0]++; if(v===1) R[1]++; R[2+k]++; }
     return {r:R}; },
+  // PCV (ShadeVis) ako doplnok qPCV v CloudCompare 2.11 – 2.13: mračno sa „vykreslí“ rovnobežne zo smeru lúča do rastra W×W (1 bod = 1 pixel, šírka
+  // = uhlopriečka obalu okolo jeho stredu, hĺbka ± uhlopriečka); pcvZ uloží do pixelu najbližšiu hĺbku (z v 0..1, pre kladné float sú bity
+  // usporiadané ako celé čísla → minimum cez Atomics.compareExchange), pcvV započíta bod ako viditeľný, ak z < 0,002 + 0,998·z_pixelu (posun glDepthRange v qPCV). Dávka nb lúčov naraz.
+  pcvZ(S,a){ const X=S.X, M=S.M, Z=new Int32Array(a.Z), W=a.W, WW=W*W, R=a.R, nb=R.length/9, c=a.c, xm=a.xm, inv=W/(2*xm), zr=a.zr, sh=a.sh, iz=1/(2*zr), f32=new Float32Array(1), i32=new Int32Array(f32.buffer), SD=a.ex?new Float32Array(a.SD):null, thr=a.thr;
+    for(let i=a.a;i<a.b;i++){ if(M[i]>=2||(SD&&SD[i]>thr)) continue; const px=X[3*i]-c[0], py=X[3*i+1]-c[1], pz=X[3*i+2]-c[2];
+      for(let r=0,o=0;r<nb;r++,o+=9){ const z=(px*R[o+6]+py*R[o+7]+pz*R[o+8]+sh+zr)*iz; if(z<0||z>1) continue;
+        const ix=Math.floor((px*R[o]+py*R[o+1]+pz*R[o+2]+xm)*inv); if(ix<0||ix>=W) continue; const iy=Math.floor((px*R[o+3]+py*R[o+4]+pz*R[o+5]+xm)*inv); if(iy<0||iy>=W) continue;
+        f32[0]=z; const q=r*WW+iy*W+ix, v=i32[0]; let cur=Z[q]; while(v<cur){ const pr=Atomics.compareExchange(Z,q,cur,v); if(pr===cur) break; cur=pr; } } }
+    return {r:1}; },
+  pcvV(S,a){ const X=S.X, M=S.M, Z=new Float32Array(a.Z), V=new Uint16Array(a.V), W=a.W, WW=W*W, R=a.R, nb=R.length/9, c=a.c, xm=a.xm, inv=W/(2*xm), zr=a.zr, sh=a.sh, iz=1/(2*zr);
+    for(let i=a.a;i<a.b;i++){ if(M[i]>=2) continue; const px=X[3*i]-c[0], py=X[3*i+1]-c[1], pz=X[3*i+2]-c[2]; let n=0;
+      for(let r=0,o=0;r<nb;r++,o+=9){ const z=(px*R[o+6]+py*R[o+7]+pz*R[o+8]+sh+zr)*iz; if(z<0||z>1) continue;
+        const ix=Math.floor((px*R[o]+py*R[o+1]+pz*R[o+2]+xm)*inv); if(ix<0||ix>=W) continue; const iy=Math.floor((px*R[o+3]+py*R[o+4]+pz*R[o+5]+xm)*inv); if(iy<0||iy>=W) continue;
+        if(z<0.002+0.998*Z[r*WW+iy*W+ix]) n++; }
+      V[i]+=n; }
+    return {r:1}; },
+  // podiel viditeľnosti → sivá farba RGB (lineárne od najmenšej po najväčšiu hodnotu, ako prevod skalárneho poľa na RGB v CloudCompare)
+  pcvC(S,a){ const M=S.M, V=new Uint16Array(a.V), C=S.C8, v0=a.v0, k=a.k; for(let i=a.a;i<a.b;i++){ if(M[i]>=2) continue; const g=Math.max(0,Math.min(255,Math.round((V[i]-v0)*k))); const o=4*i; C[o]=C[o+1]=C[o+2]=g; } return {r:1}; },
+  pcvMM(S,a){ const M=S.M, V=new Uint16Array(a.V); let mn=65535, mx=0; for(let i=a.a;i<a.b;i++){ if(M[i]>=2) continue; const v=V[i]; if(v<mn) mn=v; if(v>mx) mx=v; } return {r:[mn,mx]}; },
+  setC(S,a){ S.C32=new Uint32Array(a.C); S.C8=new Uint8Array(a.C); return {r:1}; },
   // počet bodov vo voxeloch (hustota mračna za osamelými bodmi); spoločné pole bez zámkov, stratený prírastok nevadí
   voxd(S,a){ const X=a.xu?S.XU:S.X, M=S.M, G=new Uint16Array(a.G), nx=a.nx, ny=a.ny, nz=a.nz, iv=1/a.v, x0=a.o[0], y0=a.o[1], z0=a.o[2];
     for(let i=a.a;i<a.b;i++){ if(M[i]>=2) continue; const o=i*3, x=X[o]; if(x>1e29) continue;
@@ -918,7 +949,7 @@ function loopSrc(H){
 /* ============ stav ============ */
 let D={n:0}, busy=false, nextOp=3, undo=[];
 const BGS=[[0.030,0.042,0.058,0.082,0.106,0.137],[0,0,0,0,0,0],[0.22,0.24,0.27,0.40,0.43,0.47],[0.70,0.73,0.77,0.90,0.92,0.94],[1,1,1,1,1,1],[0,0,0,10/255,102/255,151/255]];   // pozadie: dolná a horná farba
-const ui={ortho:true,ccRp:[1.2,3],iso:false,isoL:3,isoK:3,sorOn:false,sorK:6,sorN:1,rnd:0,ccEdl:false,ccEdlS:100,ccEdlR:3,ccRound:false,rv:[{ps:1,bri:1.3,bg:0,sh:null},{ps:1,bri:1,bg:5,sh:null}],lit:0,edl:true,edlS:0.5,shS:0.5,smR:1,bri:1.3,bg:0,psW:true,psD:true,psK:1.5,psCm:4,mdl:false,mode:0,ps:1,budget:20e6,lasso:false,boxShow:true,boxClip:false,cv:7};
+const ui={ortho:true,ccRp:[1.2,3],iso:false,isoL:3,isoK:3,sorOn:false,sorK:6,sorN:4,rnd:0,ccEdl:true,ccEdlS:60,ccEdlR:3,ccRound:false,rv:[{ps:1,bri:1.3,bg:0,sh:null},{ps:1,bri:1.3,bg:5,sh:null}],lit:0,edl:true,edlS:0.3,shS:0.5,smR:1,bri:1.3,bg:0,psW:true,psD:true,psK:1.5,psCm:4,mdl:false,mode:0,ps:1,budget:20e6,lasso:false,boxShow:true,boxClip:false,cv:7};
 function setBusy(t){ busy=!!t; $("busy").textContent=t||""; $("busy").style.display=t?"block":"none"; }
 const tick=()=>new Promise((r)=>setTimeout(r,0));
 
@@ -995,7 +1026,7 @@ async function openFile(file){
       `blokov: ${fN(cells.length)} (hrana ${f1(s,2)} m) · kúskov na karte: ${D.chunks.length} · najbližší sused ${f1(D.nnd*1000,1)} mm`,
       `čítanie ${f1((T[1]-T[0])/1000,2)} s · triedenie ${f1((T[2]-T[1])/1000,2)} s · karta ${f1((T[3]-T[2])/1000,2)} s`,
       `pamäť: ${f1(mem/G,2)} GiB · ${SHARED?NW+" vlákien":"bez izolácie — úpravy bežia v hlavnom vlákne (pomalšie)"}`].join("\n");
-    $("hint").style.display="none"; $("bExp").disabled=false; $("bCf").disabled=false; ouUi(); sorInfo(); updInfo(); req();
+    $("hint").style.display="none"; $("bExp").disabled=false; $("bCf").disabled=false; ouUi(); sorInfo(); pcvInfo(); updInfo(); req();
   }catch(err){
     console.error(err); freeData(); $("info").textContent="CHYBA: "+err.message; $("hint").style.display="";
   }finally{ setBusy(""); }
@@ -1168,11 +1199,12 @@ const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]], add=(a,b)=>[a[0]+b[0],a[1]+b[1
 const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2], cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const norm=(a)=>{ const l=Math.hypot(a[0],a[1],a[2])||1; return [a[0]/l,a[1]/l,a[2]/l]; };
 const cam={t:[0,0,0],yaw:-1,pitch:0.5,dist:10,fov:50*Math.PI/180};
-const PMAX=89.5*Math.PI/180;
+const PMAX=Math.PI/2;   // až presne zhora / zdola: pravý vektor kamery sa berie z azimutu, nie z vektorového súčinu so zvislicou
 function eyePos(){ const cp=Math.cos(cam.pitch); return [cam.t[0]+cam.dist*cp*Math.cos(cam.yaw),cam.t[1]+cam.dist*cp*Math.sin(cam.yaw),cam.t[2]+cam.dist*Math.sin(cam.pitch)]; }
-function basis(){ const e=eyePos(), f=norm(sub(cam.t,e)), r=norm(cross(f,[0,0,1])), u=cross(r,f); return {e,f,r,u}; }
+const camR=()=>[-Math.sin(cam.yaw),Math.cos(cam.yaw),0];
+function basis(){ const e=eyePos(), f=norm(sub(cam.t,e)), r=camR(), u=cross(r,f); return {e,f,r,u}; }
 function persp(fy,a,n,f){ const t=1/Math.tan(fy/2), nf=1/(n-f); return [t/a,0,0,0, 0,t,0,0, 0,0,(f+n)*nf,-1, 0,0,2*f*n*nf,0]; }
-function lookAt(e,c,up){ const z=norm(sub(e,c)), x=norm(cross(up,z)), y=cross(z,x);
+function lookAt(e,c,up){ const z=norm(sub(e,c)), x=up?norm(cross(up,z)):camR(), y=cross(z,x);
   return [x[0],y[0],z[0],0, x[1],y[1],z[1],0, x[2],y[2],z[2],0, -dot(x,e),-dot(y,e),-dot(z,e),1]; }
 function mul(a,b){ const o=new Array(16); for(let c=0;c<4;c++) for(let r=0;r<4;r++){ let s=0; for(let k=0;k<4;k++) s+=a[k*4+r]*b[c*4+k]; o[c*4+r]=s; } return o; }
 // obrazy EDL ako v CloudCompare: mierka 1, 1/2, 1/4 a rozmazané 1/2, 1/4 (vytvoria sa pri prvom použití)
@@ -1193,17 +1225,17 @@ function ortho(hw,hh,n,f){ return [1/hw,0,0,0, 0,1/hh,0,0, 0,0,-2/(f-n),0, 0,0,-
 function camNF(){ if(ui.ortho){ const e=eyePos(), b=D.bb, R=(D.diag||100)*0.55+0.5, dc=b?Math.hypot(e[0]-(b[0]+b[3])/2,e[1]-(b[1]+b[4])/2,e[2]-(b[2]+b[5])/2):cam.dist; return [dc-R,dc+R]; }
   return [Math.min(1,Math.max(0.002,cam.dist*0.002)),cam.dist+(D.diag||100)*2+10]; }
 function mvpNow(){ const e=eyePos(), [near,far]=camNF(), a=cv.width/Math.max(1,cv.height), hh=cam.dist*Math.tan(cam.fov/2);
-  return mul(ui.ortho?ortho(hh*a,hh,near,far):persp(cam.fov,a,near,far),lookAt(e,cam.t,[0,0,1])); }
+  return mul(ui.ortho?ortho(hh*a,hh,near,far):persp(cam.fov,a,near,far),lookAt(e,cam.t,null)); }
 function planes(m){ const r=(i)=>[m[i],m[4+i],m[8+i],m[12+i]], r0=r(0), r1=r(1), r2=r(2), r3=r(3), P=[];
   for(const [a,s] of [[r0,1],[r0,-1],[r1,1],[r1,-1],[r2,1],[r2,-1]]) P.push([r3[0]+s*a[0],r3[1]+s*a[1],r3[2]+s*a[2],r3[3]+s*a[3]]); return P; }
 function aabbVisible(P,mn,mx){ for(const p of P){ const x=p[0]>0?mx[0]:mn[0], y=p[1]>0?mx[1]:mn[1], z=p[2]>0?mx[2]:mn[2]; if(p[0]*x+p[1]*y+p[2]*z+p[3]<0) return false; } return true; }
+// štandardné pohľady (ako v CloudCompare): smer pohľadu a stred obrazu v strede otáčania; „fit“ ukáže celé mračno a stred otáčania dá do stredu obalu
+const VIEWS={top:[-Math.PI/2,Math.PI/2],bottom:[-Math.PI/2,-Math.PI/2],py:[-Math.PI/2,0],back:[Math.PI/2,0],px:[Math.PI,0],right:[0,0],iso1:[-Math.PI/4,Math.atan(1/Math.SQRT2)],iso2:[3*Math.PI/4,Math.atan(1/Math.SQRT2)]};
 function view(k){
   if(!D.n) return; const bb=D.bb;
-  if(k==="fit"){ cam.t=[(bb[0]+bb[3])/2,(bb[1]+bb[4])/2,(bb[2]+bb[5])/2]; cam.dist=D.diag/(2*Math.tan(cam.fov/2))*1.05; cam.yaw=-Math.PI/3; cam.pitch=Math.PI/6; }
-  else if(k==="top"){ cam.yaw=-Math.PI/2; cam.pitch=PMAX; }
-  else if(k==="py"){ cam.yaw=-Math.PI/2; cam.pitch=0; }
-  else if(k==="px"){ cam.yaw=Math.PI; cam.pitch=0; }
-  req();
+  if(k==="fit"){ cam.t=[(bb[0]+bb[3])/2,(bb[1]+bb[4])/2,(bb[2]+bb[5])/2]; cam.pv=cam.t.slice(); cam.dist=D.diag/(2*Math.tan(cam.fov/2))*1.05; cam.yaw=-Math.PI/3; cam.pitch=Math.PI/6; }
+  else if(VIEWS[k]){ if(cam.pv) cam.t=cam.pv.slice(); cam.yaw=VIEWS[k][0]; cam.pitch=VIEWS[k][1]; }
+  centerUntil=performance.now()+1200; req();
 }
 
 /* ============ kreslenie ============ */
@@ -1294,7 +1326,7 @@ let flashMsg="", flashUntil=0;
 function flash(t){ flashMsg=t; flashUntil=performance.now()+2500; req(); setTimeout(()=>req(),2600); }
 function drawOverlay(m){
   octx.clearRect(0,0,ov.width,ov.height);
-  if(m&&performance.now()<centerUntil){ const t=cam.t, w=m[3]*t[0]+m[7]*t[1]+m[11]*t[2]+m[15];
+  if(m&&performance.now()<centerUntil){ const t=cam.pv||cam.t, w=m[3]*t[0]+m[7]*t[1]+m[11]*t[2]+m[15];
     if(w>1e-9){ const x=((m[0]*t[0]+m[4]*t[1]+m[8]*t[2]+m[12])/w+1)/2*ov.width, y=(1-(m[1]*t[0]+m[5]*t[1]+m[9]*t[2]+m[13])/w)/2*ov.height;
       octx.lineWidth=4; octx.strokeStyle="rgba(0,0,0,0.6)"; centerGlyph(x,y); octx.lineWidth=1.8; octx.strokeStyle="#e8b23a"; centerGlyph(x,y); } }
   // lomová čiara rozvinutia: vždy navrchu, s číslami bodov
@@ -1339,6 +1371,12 @@ function pick(cx,cy){
 
 /* ============ myš a klávesnica ============ */
 let drag=null, lassoPts=null, secP=null;
+// otáčanie okolo stredu otáčania cam.pv (ostáva na mieste aj po posune pohľadu): celá kamera (cieľ aj oko) sa otočí okolo zvislice cez pv o dyaw
+// a okolo pravého vektora kamery cez pv tak, aby sa sklon zmenil o dpitch
+function orbit(dyaw,dpitch){ const P=cam.pv||cam.t; let v=sub(cam.t,P); const c=Math.cos(dyaw), s=Math.sin(dyaw); v=[v[0]*c-v[1]*s,v[0]*s+v[1]*c,v[2]]; cam.yaw+=dyaw;
+  const np=Math.max(-PMAX,Math.min(PMAX,cam.pitch+dpitch)), dp=np-cam.pitch; cam.pitch=np;
+  if(dp){ const r=camR(), a=-dp, ca=Math.cos(a), sa=Math.sin(a), rv=cross(r,v), rd=dot(r,v); v=[v[0]*ca+rv[0]*sa+r[0]*rd*(1-ca),v[1]*ca+rv[1]*sa+r[1]*rd*(1-ca),v[2]*ca+rv[2]*sa+r[2]*rd*(1-ca)]; }
+  cam.t=add(P,v); }
 ov.addEventListener("contextmenu",(e)=>e.preventDefault());
 ov.addEventListener("mousedown",(e)=>{ if(e.button===1) e.preventDefault(); });
 ov.addEventListener("auxclick",(e)=>{ if(e.button===1) e.preventDefault(); });
@@ -1352,7 +1390,7 @@ ov.addEventListener("pointermove",(e)=>{
   if(!drag) return;
   if(drag.k==="lasso"){ const l=lassoPts[lassoPts.length-1]; if(Math.hypot(e.offsetX-l[0],e.offsetY-l[1])>=2){ lassoPts.push([e.offsetX,e.offsetY]); drawLassoPath(); } return; }
   const dx=e.clientX-drag.x, dy=e.clientY-drag.y; drag.x=e.clientX; drag.y=e.clientY;
-  if(drag.k==="orbit"){ cam.yaw-=dx*0.006; cam.pitch=Math.max(-PMAX,Math.min(PMAX,cam.pitch+dy*0.006)); }
+  if(drag.k==="orbit") orbit(-dx*0.006,dy*0.006);
   else { const {r,u}=basis(), wpp=2*cam.dist*Math.tan(cam.fov/2)/Math.max(1,ov.clientHeight); cam.t=add(cam.t,add(scl(r,-dx*wpp),scl(u,dy*wpp))); }
   req(true);
 });
@@ -1374,7 +1412,7 @@ ov.addEventListener("wheel",(e)=>{
 ov.addEventListener("dblclick",(e)=>{
   if(!D.n||ui.lasso) return; const p=pick(e.offsetX,e.offsetY);
   if(!p){ flash(extCBF?"pod kurzorom nie je bod":"výber bodu nie je v tomto prehliadači k dispozícii"); return; }
-  centerUntil=performance.now()+1500;
+  centerUntil=performance.now()+1500; cam.pv=p.slice();   // dvojklik: nový stred otáčania
   if(ui.ortho){ cam.t=p; req(); return; }   // pravouhlé: bod sa len presunie do stredu, smer a mierka ostanú
   const eye=eyePos(), d=sub(eye,p), L=Math.hypot(d[0],d[1],d[2]); if(L<1e-6) return;
   cam.t=p; cam.dist=L; cam.pitch=Math.max(-PMAX,Math.min(PMAX,Math.asin(d[2]/L))); cam.yaw=Math.atan2(d[1],d[0]); req();
@@ -1620,6 +1658,44 @@ async function computeDens(){ const g=D.g, C=D.cells, m=C.length, h=Math.min(g.s
   await Promise.all(Array.from({length:NW},(_,i)=>exec(i,"dens",{S:D.S.buffer,CI:CI.buffer,ST,CN,GC,g,h,a:cut[i],b:cut[i+1]}))); D.densH=h;
   // typický kód rozostupu (medián) – od neho sa ráta osamelosť bodu
   const H=new Float64Array(256), S=D.S, st=Math.max(1,Math.floor(D.n/2e6)); let t=0; for(let i=0;i<D.n;i+=st){ if(S[i]){ H[S[i]]++; t++; } } let c=0, k=0; for(;k<256;k++){ c+=H[k]; if(c>=t/2) break; } D.sref=k; }
+// ---- tieňovanie PCV (ShadeVis) ----
+// smery rovnomerne na guli – prepis SampleSphere z qPCV (podľa „partsphere.m“, P. Leopardi)
+function sampleSphere(N){ const dirs=Array.from({length:N},()=>[0,0,1]); if(N<=1) return dirs;
+  const eps=2.2204e-16, twist=4, area=4*Math.PI/N, beta=Math.acos(1-2/N), gamma=Math.PI-2*beta, fuzz=eps*2*N, L=2+Math.max(Math.ceil(gamma/Math.sqrt(area)-fuzz),1);
+  const mbar=new Array(L).fill(0); mbar[0]=1; const th=gamma/(L-2); for(let i=1;i<L-1;i++) mbar[i]=N*(Math.cos(th*(i-1)+beta)-Math.cos(th*i+beta))/2; mbar[L-1]=1;
+  const m=new Array(L).fill(0); m[0]=1; let alpha=0; for(let i=1;i<L;i++){ let f=Math.floor(mbar[i]+alpha+fuzz); if(mbar[i]-f>=0.5) f=Math.ceil(mbar[i]+alpha-fuzz); m[i]=f; alpha+=mbar[i]-m[i]; }
+  const gcd=(a,b)=>{ const r=b%a; return r!==0?gcd(r,a):a; };
+  const off=new Array(L-1).fill(0); let z=1-(2+m[1])/N, ri=1;
+  for(let i=1;i<L-1;i++){ off[i]=(m[i-1]!==0&&m[i]!==0)?off[i-1]+gcd(m[i],m[i-1])/(2*m[i]*m[i-1])+Math.min(twist,Math.floor(m[i-1]/twist))/m[i-1]:0;
+    const t=m[i]/N, h=Math.cos((Math.acos(z+t)+Math.acos(z-t))/2), r=Math.sqrt(1-h*h);
+    for(let j=0;j<m[i];j++){ const a=2*Math.PI*(off[i]+j/m[i]); dirs[ri++]=[r*Math.cos(a),r*Math.sin(a),h]; } z-=(m[i]+m[i+1])/N; }
+  dirs[N-1]=[0,0,-1]; return dirs; }
+function uploadColors(){ for(const ch of D.chunks){ if(ch.bc) upload(D.C8,ch.start*4,ch.cnt*4,ch.bc); else { gl.bindVertexArray(ch.vao); ch.bc=upload(D.C8,ch.start*4,ch.cnt*4); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,4,gl.UNSIGNED_BYTE,true,0,0); gl.bindVertexArray(null); } } }
+async function computePcv(){
+  if(busy||!D.n) return; const t0=performance.now(), N=Math.max(1,Math.min(4096,Math.round(+$("pcvN").value)||256)), W=+$("pcvR").value||1024, half=$("pcv180").checked;
+  setBusy("Tieňovanie PCV…");
+  try{ await tick();
+    // smery ako GenerateRays v qPCV: pri „len zhora“ sa vygeneruje 2N smerov a ponechajú sa tie so z < 0 (pohľad zhora nadol)
+    let rays=sampleSphere(half?2*N:N); if(half) rays=rays.filter((d)=>d[2]<0);
+    const bb=await aliveBB(), c=[(bb[0]+bb[3])/2,(bb[1]+bb[4])/2,(bb[2]+bb[5])/2], xm=Math.hypot(bb[3]-bb[0],bb[4]-bb[1],bb[5]-bb[2])/2, zr=2*xm, sh=2*xm/W;   // ako qPCV v CloudCompare 2.11 – 2.13: hĺbka ± uhlopriečka, oko 1/zoom pred stredom
+    const ex=!!(ui.sorOn&&D.sor&&D.SD), thr=ex?sorThr():0, nb=Math.max(1,Math.min(8,Math.floor(64e6/(W*W*4)))), Z=new Int32Array(alloc(nb*W*W*4)), V=new Uint16Array(alloc(D.n*2)), one=new Int32Array(new Float32Array([1]).buffer)[0];
+    for(let r0=0;r0<rays.length;r0+=nb){ const B=rays.slice(r0,r0+nb), R=new Float64Array(B.length*9);
+      B.forEach((d,k)=>{ const U=Math.abs(d[2])>1-1e-4?[0,1,0]:[0,0,1], zc=[-d[0],-d[1],-d[2]], x=norm(cross(U,zc)), y=cross(zc,x); R.set([x[0],x[1],x[2],y[0],y[1],y[2],d[0],d[1],d[2]],9*k); });
+      Z.fill(one,0,B.length*W*W);
+      await run("pcvZ",(i)=>({...rg(i),Z:Z.buffer,W,R,c,xm,zr,sh,ex,SD:ex?D.SD.buffer:null,thr}));
+      await run("pcvV",(i)=>({...rg(i),Z:Z.buffer,V:V.buffer,W,R,c,xm,zr,sh}));
+      setBusy(`Tieňovanie PCV: ${Math.min(rays.length,r0+nb)} / ${rays.length} smerov…`); }
+    const mm=await run("pcvMM",(i)=>({...rg(i),V:V.buffer})), v0=Math.min(...mm.map((v)=>v[0])), v1=Math.max(...mm.map((v)=>v[1]));
+    if(!D.C8){ const C=new Uint32Array(alloc(D.n*4)).fill(0xffffffff); D.C32=C; D.C8=new Uint8Array(C.buffer); D.hasC=true; await run("setC",()=>({C:C.buffer})); D.pcvOrig=null; $("colMode").options[0].disabled=false; }
+    else if(D.pcvOrig===undefined) D.pcvOrig=D.C8.slice();
+    await run("pcvC",(i)=>({...rg(i),V:V.buffer,v0,k:v1>v0?255/(v1-v0):0})); uploadColors(); ui.mode=0; $("colMode").value="0";
+    D.pcv={N:rays.length,W,v0:v0/rays.length,v1:v1/rays.length,ex,time:(performance.now()-t0)/1000};
+    pcvInfo();
+  }catch(err){ console.error(err); alert("Tieňovanie PCV: "+err.message); }
+  finally{ setBusy(""); req(); } }
+function pcvInfo(){ const p=D.pcv, e=$("pcvInfo"); $("bPcv").disabled=!D.n; $("bPcvU").disabled=!(D.pcvOrig); if(!p){ e.textContent=""; return; }
+  e.textContent=`PCV: ${p.N} smerov · raster ${p.W}² · viditeľnosť ${f1(p.v0*100,1)} – ${f1(p.v1*100,1)} % → sivá 0 – 255${p.ex?" · body odfiltrované SOR nezatieňujú":""} · ${f1(p.time,1)} s`; }
+function pcvUndo(){ if(!D.pcvOrig||busy) return; D.C8.set(D.pcvOrig); uploadColors(); D.pcvOrig=undefined; D.pcv=null; pcvInfo(); $("pcvInfo").textContent="Vrátené pôvodné farby zo súboru."; req(); }
 // ---- SOR ----
 const sorKey=()=>String(ui.sorK);
 let sorBusy=false;
@@ -2155,29 +2231,49 @@ $("psW").addEventListener("change",(e)=>{ ui.psW=e.target.checked; req(); }); $(
 $("edl").addEventListener("change",(e)=>{ ui.edl=e.target.checked; req(); }); $("edlS").addEventListener("input",(e)=>{ ui.edlS=+e.target.value; req(); });
 for(const [id,k] of [["shS","shS"],["smR","smR"],["bri","bri"]]) $(id).addEventListener("input",(e)=>{ ui[k]=+e.target.value; req(); });
 $("bgSel").addEventListener("change",(e)=>{ ui.bg=+e.target.value; req(); });
-$("ps").addEventListener("input",(e)=>{ ui.ps=+e.target.value; $("psV").textContent=ui.ps+(ui.rnd?" px":""); req(); });
+$("ps").addEventListener("input",(e)=>{ ui.ps=+e.target.value; req(); });
 // spôsob zobrazenia: každý má vlastnú veľkosť bodu, jas a pozadie
 // CloudCompare po načítaní normály na osvetlenie nepoužíva (v paneli „Normals“ nezaškrtnuté), preto je tam tieňovanie predvolene vypnuté
 function setRnd(r){ r=r?1:0; if(r===ui.rnd&&$("rndSel").value==r) return; ui.rv[ui.rnd]={ps:ui.ps,bri:ui.bri,bg:ui.bg,sh:$("nShade").disabled?null:$("nShade").checked}; ui.rnd=r; const v=ui.rv[r]; ui.ps=v.ps; ui.bri=v.bri; ui.bg=v.bg;
   if(!$("nShade").disabled){ $("nShade").checked=v.sh===null?!r:v.sh; setLit(); }
-  const p=$("ps"); p.min=1; p.max=r?16:6; p.step=r?1:0.5; p.value=ui.ps; $("psL").title=r?"Veľkosť bodu v pixeloch (v CloudCompare 1 – 16)":"Najmenšia veľkosť bodu v pixeloch"; $("psV").textContent=ui.ps+(r?" px":"");
+  const p=$("ps"); p.min=1; p.max=r?16:6; p.step=r?1:0.5; p.value=ui.ps; $("psL").title=r?"Veľkosť bodu v pixeloch (v CloudCompare 1 – 16)":"Najmenšia veľkosť bodu v pixeloch";
   $("bri").value=ui.bri; $("bgSel").value=ui.bg; $("rndSel").value=r;
   document.querySelectorAll(".rnd0").forEach((e)=>{ e.hidden=!!r; }); document.querySelectorAll(".rnd1").forEach((e)=>{ e.hidden=!r; });
   $("nShadeL").title=r?"Osvetlenie normálami ako v CloudCompare: smerové svetlo od kamery, body s normálou od kamery sú tmavé":"Osvetlenie od kamery podľa normál zo súboru";
-  try{ localStorage.setItem("pc.rnd",String(r)); }catch(e){} req(); }
+  rvAll(); try{ localStorage.setItem("pc.rnd",String(r)); }catch(e){} req(); }
 $("rndSel").addEventListener("change",(e)=>setRnd(+e.target.value));
+// ikony pohľadov: kocka v izometrii (pohľad spredu sprava zhora), zvýraznená stena, z ktorej sa pozerá; skryté hrany čiarkovane
+(function(){ const P=(x,y,z)=>[4+7*(x+y),14-8*z+3.5*(x-y)].map((v)=>v.toFixed(1)).join(" ");
+  const F={top:[[0,0,1],[1,0,1],[1,1,1],[0,1,1]],bottom:[[0,0,0],[1,0,0],[1,1,0],[0,1,0]],py:[[0,0,0],[1,0,0],[1,0,1],[0,0,1]],back:[[0,1,0],[1,1,0],[1,1,1],[0,1,1]],px:[[0,0,0],[0,1,0],[0,1,1],[0,0,1]],right:[[1,0,0],[1,1,0],[1,1,1],[1,0,1]]};
+  const hid=[[0,1,0],[0,1,1],[0,1,0],[1,1,0],[0,1,0],[0,0,0]], vis=[[0,0,0],[1,0,0],[1,0,0],[1,1,0],[1,1,0],[1,1,1],[0,0,0],[0,0,1],[1,0,0],[1,0,1],[0,0,1],[1,0,1],[1,0,1],[1,1,1],[1,1,1],[0,1,1],[0,1,1],[0,0,1]];
+  const line=(a,b,d)=>`<line x1="${P(...a).split(" ")[0]}" y1="${P(...a).split(" ")[1]}" x2="${P(...b).split(" ")[0]}" y2="${P(...b).split(" ")[1]}"${d?' stroke-dasharray="1.5 1.5" opacity=".6"':""}/>`;
+  const cube=(faces,op)=>{ let s=`<svg viewBox="0 0 22 20" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round">`;
+    for(const face of faces) s+=`<polygon points="${F[face].map((p)=>P(...p)).join(" ")}" fill="var(--gold)" fill-opacity="${op||(face==="bottom"||face==="back"||face==="px"?0.45:0.85)}" stroke="none"/>`;
+    for(let i=0;i<hid.length;i+=2) s+=line(hid[i],hid[i+1],true); for(let i=0;i<vis.length;i+=2) s+=line(vis[i],vis[i+1],false);
+    return s+"</svg>"; };
+  const fit=`<svg viewBox="0 0 22 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 6V2h4M16 2h4v4M20 14v4h-4M6 18H2v-4"/><circle cx="11" cy="10" r="3.2" fill="var(--gold)" stroke="none"/></svg>`;
+  for(const b of document.querySelectorAll("button.vi")){ const v=b.dataset.v; b.innerHTML=v==="fit"?fit:v==="iso1"?cube(["top","py","right"],0.4):v==="iso2"?cube(["top","back","px"],0.3):cube([v]); }
+})();
+// pri každom posuvníku hodnota a rozsah, napr. „1,3× (0,5 – 3)“
+const RVU={ps:" px",psK:"×",edlS:"",shS:"",smR:" px",ccEdlS:"",ccEdlR:" px",bri:"×",isoL:" m",isoK:"×"};
+const fmtN=(v)=>String(+(+v).toFixed(2)).replace(".",",");
+function rvUpd(id){ const e=$(id), o=$("rv_"+id); if(!e||!o) return; const u=RVU[id]||""; o.textContent=`${fmtN(e.value)}${u} (${fmtN(e.min)} – ${fmtN(e.max)})`; }
+function rvAll(){ for(const id in RVU) rvUpd(id); }
+for(const id in RVU){ const e=$(id); if(!e) continue; const o=document.createElement("span"); o.className="k rv"; o.id="rv_"+id; e.parentNode.after(o); e.addEventListener("input",()=>rvUpd(id)); }
+rvAll();
 $("ccEdl").addEventListener("change",(e)=>{ ui.ccEdl=e.target.checked; req(); }); $("ccRound").addEventListener("change",(e)=>{ ui.ccRound=e.target.checked; req(); });
 $("ccEdlS").addEventListener("input",(e)=>{ ui.ccEdlS=+e.target.value; req(); }); $("ccEdlR").addEventListener("input",(e)=>{ ui.ccEdlR=+e.target.value; ui.ccRp[ui.ortho?0:1]=ui.ccEdlR; req(); });
 // perspektíva / pravouhlé premietanie; polomer EDL ako v CloudCompare: 1,2 px pravouhlo, 3 px v perspektíve (každé premietanie si pamätá svoj)
-function setPersp(on){ ui.ortho=!on; $("persp").checked=!!on; ui.ccEdlR=ui.ccRp[on?1:0]; $("ccEdlR").value=ui.ccEdlR; req(); }
+function setPersp(on){ ui.ortho=!on; $("persp").checked=!!on; ui.ccEdlR=ui.ccRp[on?1:0]; $("ccEdlR").value=ui.ccEdlR; rvAll(); req(); }
 $("persp").addEventListener("change",(e)=>setPersp(e.target.checked)); setPersp(false);
 function setIso(on){ ui.iso=!!on; $("isoE").checked=ui.iso; document.querySelectorAll(".rnd2").forEach((e)=>{ e.hidden=!ui.iso; }); req(); }
 $("isoE").addEventListener("change",(e)=>setIso(e.target.checked)); setIso(false);
 $("sorE").addEventListener("change",(e)=>{ ui.sorOn=e.target.checked; req(); });
+$("bPcv").addEventListener("click",computePcv); $("bPcvU").addEventListener("click",pcvUndo);
 $("sorK").addEventListener("change",(e)=>{ ui.sorK=Math.max(2,Math.min(32,Math.round(+e.target.value)||6)); e.target.value=ui.sorK; req(); });
 $("sorN").addEventListener("input",(e)=>{ const v=+e.target.value; if(isFinite(v)&&v>=0){ ui.sorN=v; sorRecount(); req(); } });
 $("bSorSel").addEventListener("click",sorSelect); $("bSorRe").addEventListener("click",()=>{ if(D.sor) D.sor.key=""; computeSor(); });
-$("isoL").addEventListener("input",(e)=>{ ui.isoL=+e.target.value; $("isoLV").textContent=ui.isoL+" m"; req(); }); $("isoK").addEventListener("input",(e)=>{ ui.isoK=+e.target.value; req(); });
+$("isoL").addEventListener("input",(e)=>{ ui.isoL=+e.target.value; req(); }); $("isoK").addEventListener("input",(e)=>{ ui.isoK=+e.target.value; req(); });
 try{ if(localStorage.getItem("pc.rnd")==="1") setRnd(1); }catch(e){}
 $("budget").addEventListener("change",(e)=>{ ui.budget=+e.target.value*1e6; req(); });
 const vw=$("view");
